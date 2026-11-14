@@ -54,7 +54,7 @@
     "drop_rate": 0,
     "fv_lock": 0,
     "fv_reward": [0],
-    "pet_limit": ["TamatectAEC"],
+    "pet_limit": ["Tamatect"],
     "description": "A test hard hat for Tamatect. Use it to equip the hat overlay."
   },
   "coin": {

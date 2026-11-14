@@ -31,6 +31,22 @@ num_hp_states = 4
 # Copied from settings.py
 LVL_BAR_V1 = [20, 120, 300, 600, 1200, 1800, 2400, 3200]
 LVL_BAR = [20] + [120]*200
+LEGACY_ROLE_NAMES = {'TamatectAEC': 'Tamatect'}
+
+
+def migrate_role_name(role_name):
+    return LEGACY_ROLE_NAMES.get(role_name, role_name)
+
+
+def migrate_role_mapping(role_mapping):
+    if not isinstance(role_mapping, dict):
+        return role_mapping
+
+    for old_name, new_name in LEGACY_ROLE_NAMES.items():
+        if old_name in role_mapping:
+            role_mapping.setdefault(new_name, role_mapping[old_name])
+            role_mapping.pop(old_name)
+    return role_mapping
 
 class PetConfig:
     """
@@ -622,6 +638,9 @@ class ActData:
         self.current_pet = petsList[0]
         self.file_path = os.path.join(configdir, 'data/act_data.json')
         self.allAct_params = self.init_config()
+        if any(name in self.allAct_params for name in LEGACY_ROLE_NAMES):
+            migrate_role_mapping(self.allAct_params)
+            self.save_data()
 
     def init_config(self):
         if os.path.isfile(self.file_path):
@@ -775,6 +794,7 @@ class PetData:
                 allData_params = {}
                 self.saveGood = False
 
+            migrate_role_mapping(allData_params)
 
             if self.current_pet in allData_params.keys():
                 # Already the new version save structure
@@ -1080,6 +1100,8 @@ class PetData:
 
         else:
             # Save to import is from new version
+            save_allDict = migrate_role_mapping(save_allDict.copy())
+            petname = migrate_role_name(petname)
             if petname == 'all':
                 for pet, save_dict in save_allDict.items():
                     try:
@@ -1119,6 +1141,8 @@ class PetData:
                     self.transfer_save_toPet(save_dict, petname)
             else:
                 # Save to import is from new version
+                save_allDict = migrate_role_mapping(save_allDict.copy())
+                petname = migrate_role_name(petname)
                 if petname == 'all':
                     for pet, save_dict in save_allDict.items():
                         self.transfer_save_toPet(save_dict, pet)
@@ -1135,6 +1159,7 @@ class PetData:
         return 1
 
     def transfer_save_toPet(self, data_params, petname):
+        petname = migrate_role_name(petname)
 
         data_params = self._check_coins(data_params)
         data_params = self._check_items(data_params)

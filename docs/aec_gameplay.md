@@ -1,9 +1,11 @@
-# TamatectAEC gameplay
+# Tamatect gameplay
 
-Select the `TamatectAEC` role to enable the AEC loop. It reuses the supplied
+Select the `Tamatect` role to enable the AEC loop. It reuses the supplied
 numbered PNG idle frames and the existing focus and Pomodoro timers.
 Its 543x605 source frames are rendered at 15% scale, with matching role
 dimensions so the pet label is not clipped by the desktop window.
+Settings, pet saves, and custom animation data from the former `TamatectAEC`
+role are migrated to `Tamatect`.
 
 - Focus and Pomodoro work minutes grant 1 EXP per minute for the first 120
   work minutes each day, 0.5 EXP per minute through minute 240, then 0.25 EXP

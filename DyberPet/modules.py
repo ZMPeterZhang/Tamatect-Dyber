@@ -210,7 +210,8 @@ class Animation_worker(QObject):
                     'anchor': self.pet_conf.accessory_act[act_name]['anchor'],
                     'follow_main': self.pet_conf.accessory_act[act_name].get('follow_main', False),
                     'speed_follow_main': self.pet_conf.accessory_act[act_name].get('speed_follow_main', 5),
-                    'follow_mouse': self.pet_conf.accessory_act[act_name].get('follow_mouse', False)}
+                    'follow_mouse': self.pet_conf.accessory_act[act_name].get('follow_mouse', False),
+                    'above_main': self.pet_conf.accessory_act[act_name].get('above_main', True)}
         elif act_type == 'customized':
             acts = self.pet_conf.custom_act[act_name]['act_list']
             if self.pet_conf.custom_act[act_name]['acc_list']:

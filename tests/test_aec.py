@@ -6,6 +6,7 @@ from DyberPet.aec import (
     AECProgression,
     migrate_aec_progression,
 )
+from DyberPet.conf import migrate_role_mapping, migrate_role_name
 
 
 class FakePetData:
@@ -21,6 +22,25 @@ class FakePetData:
 
 
 class AECProgressionTests(unittest.TestCase):
+    def test_role_rename_migrates_legacy_data(self):
+        role_data = {'TamatectAEC': {'legacy': True}}
+
+        migrate_role_mapping(role_data)
+
+        self.assertEqual(role_data, {'Tamatect': {'legacy': True}})
+        self.assertEqual(migrate_role_name('TamatectAEC'), 'Tamatect')
+
+    def test_role_rename_migrates_keys_without_overwriting_new_values(self):
+        role_data = {
+            'TamatectAEC': {'legacy': True},
+            'Tamatect': {'current': True},
+        }
+
+        migrate_role_mapping(role_data)
+
+        self.assertNotIn('TamatectAEC', role_data)
+        self.assertEqual(role_data['Tamatect'], {'current': True})
+
     def test_work_grants_exp_and_costs_health(self):
         progression = AECProgression(FakePetData())
         results = [progression.work_minute() for _ in range(25)]

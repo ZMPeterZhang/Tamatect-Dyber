@@ -5,7 +5,14 @@ from sys import platform
 from collections import defaultdict
 
 from PySide6.QtGui import QImage, QPixmap
-from DyberPet.conf import PetData, TaskData, ActData, ItemData
+from DyberPet.conf import (
+    PetData,
+    TaskData,
+    ActData,
+    ItemData,
+    migrate_role_name,
+    migrate_role_mapping,
+)
 from PySide6 import QtCore
 
 if platform == 'win32':
@@ -250,7 +257,7 @@ def init_settings():
         volume = data_params['volume']
         language_code = data_params.get('language_code', QtCore.QLocale().name())
         on_top_hint = data_params.get('on_top_hint', True)
-        default_pet = data_params.get('default_pet', pets[0])
+        default_pet = migrate_role_name(data_params.get('default_pet', pets[0]))
         defaultAct = data_params.get('defaultAct', {})
         themeColor = data_params.get('themeColor', None)
 
@@ -259,6 +266,7 @@ def init_settings():
             defaultAct = {}
         elif type(defaultAct) == str:
             defaultAct = {}
+        defaultAct = migrate_role_mapping(defaultAct)
 
         for pet in pets:
             defaultAct[pet] = defaultAct.get(pet, None)
@@ -279,7 +287,7 @@ def init_settings():
         # tunable_scale as all default
         tunable_scale = data_params.get('tunable_scale', 1.0)
         # v0.5.0 tunable_scales are specified for each character
-        scale_dict_tmp = data_params.get('scale_dict', {})
+        scale_dict_tmp = migrate_role_mapping(data_params.get('scale_dict', {}))
         scale_dict = {}
         for pet in pets:
             pet_scale = scale_dict_tmp.get(pet, tunable_scale)
@@ -295,6 +303,9 @@ def init_settings():
         # mini-pet scale settings
         minipet_scale = data_params.get('minipet_scale', defaultdict(dict))
         minipet_scale = check_dict_datatype(minipet_scale, dict, {})
+        migrate_role_mapping(minipet_scale)
+        for pet_scales in minipet_scale.values():
+            migrate_role_mapping(pet_scales)
         minipet_scale = defaultdict(dict, minipet_scale)
         for minipet, sdict in minipet_scale.items():
             minipet_scale[minipet] = check_dict_datatype(sdict, float, 1.0)
@@ -305,7 +316,8 @@ def init_settings():
         #=====================================================
 
         # v0.6.1 User Tag (how pet will call the user)
-        usertag_dict_tmp = data_params.get('usertag_dict', {})
+        usertag_dict_tmp = migrate_role_mapping(
+            data_params.get('usertag_dict', {}))
         usertag_dict = {}
         for pet in pets:
             usertag = usertag_dict_tmp.get(pet, '')

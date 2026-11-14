@@ -48,6 +48,8 @@ else:
     #basedir = '/'.join(basedir.split('/')[:-1])
     flags = Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint
 
+ACCESSORY_FOLLOW_DELAY_MS = 167
+
 basedir = settings.BASEDIR
 
 ##############################
@@ -358,8 +360,9 @@ class QAccessory(QWidget):
         self.timeout = acc_act.get('timeout', True)
         self.closable = acc_act.get('closable', False)
         self.follow_main = acc_act.get('follow_main', False)
-        self.delay_respond = 500 #ms
-        self.delay_timer = 500 #ms
+        self.above_main = acc_act.get('above_main', True)
+        self.delay_respond = ACCESSORY_FOLLOW_DELAY_MS
+        self.delay_timer = ACCESSORY_FOLLOW_DELAY_MS
         self.main_falling = False
         self.speed_follow_main = acc_act.get('speed_follow_main', 5)
         self.at_destination = True
@@ -434,6 +437,7 @@ class QAccessory(QWidget):
 
         self.setLayout(self.petlayout)
         self.show()
+        self._raise_if_above_main()
 
         self.timer = QTimer()
         self.timer.setTimerType(Qt.PreciseTimer)
@@ -472,6 +476,10 @@ class QAccessory(QWidget):
         else:
             self.move(x-self.current_anchor[0],y-self.current_anchor[1])
 
+    def _raise_if_above_main(self):
+        if self.above_main and self.isVisible():
+            self.raise_()
+
     def _withdraw(self):
         self.acc_withdrawed.emit(self.acc_act['name'])
         self._closeit()
@@ -496,6 +504,7 @@ class QAccessory(QWidget):
         self.setAutoFillBackground(False)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.show()
+        self._raise_if_above_main()
 
     def mousePressEvent(self, event):
         """
@@ -524,6 +533,7 @@ class QAccessory(QWidget):
                 self.move_right = False
                 self.delay_timer = 0
                 self.move(*self.destination)
+                self._raise_if_above_main()
                 return
             if not self.main_falling:
                 self.delay_timer = self.delay_respond
@@ -534,6 +544,7 @@ class QAccessory(QWidget):
             if self.speed_follow_main*5 <= ((x_new**2 + y_pos**2)**0.5):
                 self.at_destination = False
                 self.destination = [pos_x+self.current_anchor[0], pos_y+self.current_anchor[1]]
+            self._raise_if_above_main()
                 #if self.delay_respond == self.delay_time:
                 #self.move(pos_x-self.anchor[0]*settings.tunable_scale, pos_y-self.anchor[1]*settings.tunable_scale)
 
@@ -614,6 +625,7 @@ class QAccessory(QWidget):
 
         if self.follow_main and not self.at_destination:
             self.move_to_main()
+        self._raise_if_above_main()
 
     def _move(self, act: QAction) -> None: #pos: QPoint, act: QAction) -> None:
         """
