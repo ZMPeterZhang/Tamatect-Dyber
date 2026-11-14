@@ -69,6 +69,7 @@ class ItemLayoutEditor(QDialog):
         self.send_backward.clicked.connect(lambda: self.move_layer_in_list(1))
         self.slots = QLabel()
         controls.addWidget(self.slots)
+        controls.addWidget(QLabel(self.tr('Level up to unlock one more slot.')))
         controls.addWidget(QLabel(self.tr('Size')))
         self.size = QSlider(Qt.Horizontal)
         controls.addWidget(self.size)
@@ -117,8 +118,8 @@ class ItemLayoutEditor(QDialog):
         model.moveRow(root, row, root, target + (step > 0))
 
     def render(self, *_):
-        image = self.pet._compose_item_layers(self.frame, self.ordered_layers())
-        image = image.scaled(self.preview.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        image = self.pet._compose_item_layers(self.frame, self.ordered_layers(),
+                                              target_size=self.preview.size())
         selected = self.selected_layer()
         if selected is not None and not image.isNull():
             bounds = self.pet._item_bounds(selected)

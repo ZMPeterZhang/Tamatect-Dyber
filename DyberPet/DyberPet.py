@@ -1108,6 +1108,10 @@ class PetWidget(QWidget):
                     lambda checked=False, event_name=event:
                     self._handle_aec_event(event_name))
                 self.aec_debug_menu.addAction(action)
+            from .debug_shop_items import add_shop_item
+            add_item = Action(self.tr('Add Shop Item…'), self.aec_debug_menu)
+            add_item.triggered.connect(lambda: add_shop_item(self))
+            self.aec_debug_menu.addAction(add_item)
             self.StatMenu.addMenu(self.aec_debug_menu)
         #self.StatMenu.addWidget(fvbar, selectable=False)
         self.StatMenu.addSeparator()
@@ -1137,7 +1141,7 @@ class PetWidget(QWidget):
 
 
     def _item_slot_limit(self):
-        return 2
+        return 2 + max(0, settings.get_progression_level())
 
     def _can_edit_layer(self, layer):
         item = layer['config'].get('inventory_item')
@@ -1524,7 +1528,8 @@ class PetWidget(QWidget):
         self.label.setFixedSize(width_tmp, height_tmp)
         image = settings.current_img
         image = self._compose_item_layers(image, getattr(self, 'item_layers', {}),
-                                          getattr(settings, 'current_img_mirrored', False))
+                                          getattr(settings, 'current_img_mirrored', False),
+                                          self.label.size())
         self.label.setPixmap(image)
         # previous scaling soluton
         #self.label.resize(width_tmp, height_tmp)
@@ -1533,9 +1538,15 @@ class PetWidget(QWidget):
         #                                                                 mode=Qt.SmoothTransformation)))
         self.image = image
 
-    def _compose_item_layers(self, image, layers, mirrored=False):
-        if layers and not image.isNull():
-            image = QPixmap.fromImage(image.toImage().mirrored(True, False)) if mirrored else image.copy()
+    def _compose_item_layers(self, image, layers, mirrored=False, target_size=None):
+        if image.isNull():
+            return image
+        if layers and mirrored:
+            image = QPixmap.fromImage(image.toImage().mirrored(True, False))
+        if target_size is not None and target_size.isValid() and image.size() != target_size:
+            image = image.scaled(target_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        if layers:
+            image = image.copy()
             scale_x = image.width() / self.item_canvas.width()
             scale_y = image.height() / self.item_canvas.height()
             painter = QPainter(image)
@@ -1863,7 +1874,7 @@ class PetWidget(QWidget):
                     if not visible and self._placed_item_count() >= self._item_slot_limit():
                         from PySide6.QtWidgets import QMessageBox
 
-                        QMessageBox.information(self, self.tr("Item slots full"), self.tr("Withdraw a placed item to free a slot. Level up for more slots in a future update."))
+                        QMessageBox.information(self, self.tr("Item slots full"), self.tr("Withdraw a placed item to free a slot, or level up to unlock another slot."))
                         return
                     layer['visible'] = not visible
                     if not self._write_item_layer(layer):
@@ -2251,6 +2262,9 @@ class PetWidget(QWidget):
                 self.fvlvl_changed_main_inve.emit(fv_lvl)
         self._update_fvlock()
         self.lvl_badge.set_level(fv_lvl)
+        editor = getattr(self, 'item_layout_editor', None)
+        if editor is not None:
+            editor.render()
         self.refresh_acts.emit()
         if notify and fv_lvl > previous_level:
             self.bubble_manager.trigger_bubble(bb_type="fv_lvlup")

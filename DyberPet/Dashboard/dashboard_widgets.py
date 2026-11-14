@@ -1913,6 +1913,9 @@ class ShopView(QWidget):
                 break
 
     def _updateAllItemUI(self):
+        for item in self.items_data:
+            if item not in self._Items and self.items_data[item]['cost'] != -1:
+                self._addItemCard(max(self.cards, default=-1) + 1, item)
         for idx, card in self.cards.items():
             card._update_UI()
 
