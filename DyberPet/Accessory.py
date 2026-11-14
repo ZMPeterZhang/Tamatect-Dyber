@@ -364,6 +364,7 @@ class QAccessory(QWidget):
         self.delay_respond = ACCESSORY_FOLLOW_DELAY_MS
         self.delay_timer = ACCESSORY_FOLLOW_DELAY_MS
         self.main_falling = False
+        self.recovering_from_fall = False
         self.speed_follow_main = acc_act.get('speed_follow_main', 5)
         self.at_destination = True
         self.move_right = False
@@ -524,11 +525,31 @@ class QAccessory(QWidget):
         if self.follow_main:
             is_falling = self._main_is_falling()
             if not is_falling:
+                just_landed = self.main_falling
                 self.main_falling = False
                 self.destination = [
                     pos_x + self.current_anchor[0],
                     pos_y + self.current_anchor[1],
                 ]
+                if just_landed:
+                    self.recovering_from_fall = True
+
+                if self.recovering_from_fall:
+                    self.delay_timer = 0
+                    distance_x = self.destination[0] - self.pos().x()
+                    distance_y = self.destination[1] - self.pos().y()
+                    if max(1, self.speed_follow_main * settings.tunable_scale) >= (
+                        (distance_x ** 2 + distance_y ** 2) ** 0.5
+                    ):
+                        self.move(*self.destination)
+                        self.at_destination = True
+                        self.recovering_from_fall = False
+                    else:
+                        self.at_destination = False
+                        self.move_right = distance_x > 0
+                    self._raise_if_above_main()
+                    return
+
                 self.at_destination = True
                 self.move_right = False
                 self.delay_timer = 0
@@ -678,10 +699,11 @@ class QAccessory(QWidget):
             self.move_right = False
 
         if max(1,self.speed_follow_main*settings.tunable_scale) >= ((movement_x**2 + movement_y**2)**0.5):
-            #plus_x = movement_x
-            #plus_y = movement_y
+            self.move(*self.destination)
             self.move_right = False
             self.at_destination = True
+            if not self._main_is_falling():
+                self.recovering_from_fall = False
             self.delay_timer = self.delay_respond if self._main_is_falling() else 0
             return
 
