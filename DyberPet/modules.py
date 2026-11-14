@@ -279,6 +279,7 @@ class Animation_worker(QObject):
                 #global current_img, previous_img
                 settings.previous_img = settings.current_img
                 settings.current_img = img
+                settings.current_img_mirrored = False
                 settings.previous_anchor = settings.current_anchor
                 settings.current_anchor =  [int(i * settings.tunable_scale) for i in act.anchor]
                 #print('anim', settings.previous_anchor, settings.current_anchor)
@@ -513,6 +514,7 @@ class Interaction_worker(QObject):
                 settings.playid = 0
             settings.previous_img = settings.current_img
             settings.current_img = img
+            settings.current_img_mirrored = False
             settings.previous_anchor = settings.current_anchor
             settings.current_anchor = [int(i * settings.tunable_scale) for i in act.anchor]
 
@@ -554,6 +556,7 @@ class Interaction_worker(QObject):
                 transform = QTransform()
                 transform.scale(-1, 1)
                 settings.current_img = settings.current_img.transformed(transform) #.mirrored(True, False)
+                settings.current_img_mirrored = True
                 settings.current_anchor = [int(i * settings.tunable_scale) for i in act.anchor]
                 settings.current_anchor = [-settings.current_anchor[0], settings.current_anchor[1]]
 
@@ -700,6 +703,7 @@ class Interaction_worker(QObject):
                     transform = QTransform()
                     transform.scale(-1, 1)
                     settings.current_img = settings.current_img.transformed(transform)
+                    settings.current_img_mirrored = True
                     settings.current_anchor = [int(i * settings.tunable_scale) for i in acts.anchor]
                     settings.current_anchor = [-settings.current_anchor[0], settings.current_anchor[1]]
 

@@ -1,0 +1,28 @@
+{
+  "random_act": [
+    {
+      "act_prob": 1.0,
+      "act_type": [
+        2,
+        1
+      ],
+      "act_list": [
+        "idle"
+      ],
+      "name": "Idle"
+    }
+  ],
+  "focus": "idle",
+  "fall": "idle",
+  "default": "idle",
+  "scale": 0.38,
+  "width": 543,
+  "height": 724,
+  "drag": "idle",
+  "up": "idle",
+  "down": "idle",
+  "left": "idle",
+  "right": "idle",
+  "prefall": "idle",
+  "patpat": "idle"
+}

@@ -1,0 +1,8 @@
+{
+  "name": "Desk Lamp",
+  "inventory_item": "Desk Lamp",
+  "offset_x": 375,
+  "offset_y": 365,
+  "scale": 1.25,
+  "visible": false
+}

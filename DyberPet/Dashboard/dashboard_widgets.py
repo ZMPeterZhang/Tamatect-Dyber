@@ -1130,6 +1130,11 @@ class itemTabWidget(QWidget):
         self.changeButton()
 
     def changeButton(self, item_inuse=False):
+        if self.selected_cell is not None:
+            cell = self.cells_dict[self.selected_cell]
+            layer = getattr(settings, 'equipped_item_layers', {}).get(cell.item_name)
+            if layer is not None:
+                cell.item_inuse = item_inuse = layer['visible']
         if self.selected_cell is None:
             self.set_confirm.emit(0, 0)
             #self.button_confirm.setText(self.tr('使用'))
@@ -1494,6 +1499,18 @@ class itemTabWidget(QWidget):
 SHOPITEM_W, SHOPITEM_H = 210, 120
 SHOPITEM_WH = 50
 
+def _shop_item_display_name(item_name):
+    english_names = {
+        '汉堡': 'Cheeseburger',
+        '薯条': 'French Fries',
+        '果酱': 'Fruit Jam',
+        '炸鸡': 'Fried Chicken',
+    }
+    if settings.language_code == 'en_US':
+        return english_names.get(item_name, item_name)
+    return item_name
+
+
 class ShopItemWidget(SimpleCardWidget):
 
     buyClicked = Signal(str, name="buyClicked")
@@ -1614,9 +1631,9 @@ class ShopItemWidget(SimpleCardWidget):
 
         # Item name
         if self.unlocked:
-            title = self.item_name
+            title = _shop_item_display_name(self.item_name)
         else:
-            title = MaskPhrase(self.item_name)
+            title = MaskPhrase(_shop_item_display_name(self.item_name))
         self.nameLabel = CaptionLabel(title)
         setFont(self.nameLabel, 14, QFont.DemiBold)
         self.nameLabel.adjustSize()
@@ -1726,9 +1743,9 @@ class ShopItemWidget(SimpleCardWidget):
         
             # Item name
             if self.unlocked:
-                title = self.item_name
+                title = _shop_item_display_name(self.item_name)
             else:
-                title = MaskPhrase(self.item_name)
+                title = MaskPhrase(_shop_item_display_name(self.item_name))
             self.nameLabel.setText(title)
             self.nameLabel.adjustSize()
 
@@ -2059,9 +2076,9 @@ class ShopMessageBox(MessageBoxBase):
         self.option = option
         self.itemNum = 0
         if self.option == 'buy':
-            self.titleLabel = SubtitleLabel(self.tr('Buy') + f' [{item_name}]', self)
+            self.titleLabel = SubtitleLabel(self.tr('Buy') + f' [{_shop_item_display_name(item_name)}]', self)
         elif self.option == 'sell':
-            self.titleLabel = SubtitleLabel(self.tr('Sell') + f' [{item_name}]', self)
+            self.titleLabel = SubtitleLabel(self.tr('Sell') + f' [{_shop_item_display_name(item_name)}]', self)
         self.numSpinBox = SpinBox(self)
         self.numSpinBox.setMinimum(0)
         self.numSpinBox.setMaximum(maxNum)

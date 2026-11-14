@@ -1,0 +1,26 @@
+{
+  "Hard Hat": {
+    "image": "hard_hat.png",
+    "type": "collection",
+    "description": "Use to put on or take off the hard hat.",
+    "cost": -1,
+    "fv_lock": 0,
+    "fv_reward": [
+      0
+    ],
+    "pet_limit": [
+      "DeskBuddy"
+    ]
+  },
+  "Desk Lamp": {
+    "image": "lamp.png",
+    "type": "collection",
+    "description": "A lamp for DeskBuddy\u2019s desk. Uses one placement slot.",
+    "cost": 5,
+    "fv_lock": 0,
+    "pet_limit": [
+      "DeskBuddy",
+      "Tamatect"
+    ]
+  }
+}

@@ -1,70 +1,74 @@
 {
-  "汉堡": {
-    "name": "汉堡",
-    "image": "15_burger.png",
-    "effect_HP": 10,
-    "effect_FV": 3,
-    "drop_rate": 0.5,
-    "fv_lock": 1,
-    "buff":{
-      "effect": "HP_stop",
-      "expiration": 300,
-      "description":"使用后5分钟内活力满满，饱食度不会下降"
+    "汉堡": {
+        "name": "汉堡",
+        "image": "15_burger.png",
+        "effect_HP": 10,
+        "effect_FV": 3,
+        "drop_rate": 0.5,
+        "fv_lock": 1,
+        "buff": {
+            "effect": "HP_stop",
+            "expiration": 300,
+            "description": "Prevents Satiety from dropping for 5 minutes."
+        },
+        "description": "A beef cheeseburger."
     },
-    "description": "喵当劳招牌 - 牛肉芝士汉堡"
-  },
-  "薯条" : {
-    "name": "薯条",
-    "image": "44_frenchfries.png",
-    "effect_HP": 8,
-    "effect_FV": 2,
-    "drop_rate": 0.5,
-    "fv_lock": 1,
-    "buff":{
-      "effect": "coin",
-      "interval": 30,
-      "value": 5,
-      "expiration": 120,
-      "description":"使用后每30秒获得5金币，持续2分钟"
+    "薯条": {
+        "name": "薯条",
+        "image": "44_frenchfries.png",
+        "effect_HP": 8,
+        "effect_FV": 2,
+        "drop_rate": 0.5,
+        "fv_lock": 1,
+        "buff": {
+            "effect": "coin",
+            "interval": 30,
+            "value": 5,
+            "expiration": 120,
+            "description": "Earn 5 coins every 30 seconds for 2 minutes."
+        },
+        "description": "A serving of French fries."
     },
-    "description": "薯条就是薯条"
-  },
-  "果酱" : {
-    "name": "果酱",
-    "image": "61_jam.png",
-    "effect_HP": 8,
-    "effect_FV": 2,
-    "drop_rate": 0.5,
-    "fv_lock": 1,
-    "description": "果酱就是果酱"
-  },
-  "炸鸡": {
-    "name": "炸鸡",
-    "image": "85_roastedchicken.png",
-    "effect_HP": 15,
-    "effect_FV": 5,
-    "drop_rate": 0.5,
-    "fv_lock": 2,
-    "description": "炸鸡就是炸鸡"
-  },
-  "AEC Hard Hat": {
-    "image": "aec_hard_hat.png",
-    "type": "collection",
-    "cost": -1,
-    "drop_rate": 0,
-    "fv_lock": 0,
-    "fv_reward": [0],
-    "pet_limit": ["Tamatect"],
-    "description": "A test hard hat for Tamatect. Use it to equip the hat overlay."
-  },
-  "coin": {
-    "name":{
-      "zh_CN":"啵币",
-      "en_US":"Dyber Coin"
+    "果酱": {
+        "name": "果酱",
+        "image": "61_jam.png",
+        "effect_HP": 8,
+        "effect_FV": 2,
+        "drop_rate": 0.5,
+        "fv_lock": 1,
+        "description": "A jar of fruit jam."
     },
-    "image": "coin.svg",
-    "type": "coin",
-    "drop_rate": 0,
-    "cost":-1
-  }
+    "炸鸡": {
+        "name": "炸鸡",
+        "image": "85_roastedchicken.png",
+        "effect_HP": 15,
+        "effect_FV": 5,
+        "drop_rate": 0.5,
+        "fv_lock": 2,
+        "description": "A serving of fried chicken."
+    },
+    "AEC Hard Hat": {
+        "image": "aec_hard_hat.png",
+        "type": "collection",
+        "cost": -1,
+        "drop_rate": 0,
+        "fv_lock": 0,
+        "fv_reward": [
+            0
+        ],
+        "pet_limit": [
+            "Tamatect"
+        ],
+        "description": "A test hard hat for Tamatect. Use it to equip the hat overlay."
+    },
+    "coin": {
+        "name": {
+            "zh_CN": "啵币",
+            "en_US": "Dyber Coin"
+        },
+        "image": "coin.svg",
+        "type": "coin",
+        "drop_rate": 0,
+        "cost": -1
+    }
 }

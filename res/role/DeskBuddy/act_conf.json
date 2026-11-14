@@ -1,0 +1,22 @@
+{
+  "idle": {
+    "images": "idle",
+    "anchor": [
+      0,
+      0
+    ],
+    "need_move": false,
+    "act_num": 1,
+    "frame_refresh": 0.45
+  },
+  "default": {
+    "images": "idle",
+    "anchor": [
+      0,
+      0
+    ],
+    "need_move": false,
+    "act_num": 1,
+    "frame_refresh": 0.45
+  }
+}
