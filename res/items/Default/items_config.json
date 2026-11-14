@@ -47,6 +47,16 @@
     "fv_lock": 2,
     "description": "炸鸡就是炸鸡"
   },
+  "AEC Hard Hat": {
+    "image": "aec_hard_hat.png",
+    "type": "collection",
+    "cost": -1,
+    "drop_rate": 0,
+    "fv_lock": 0,
+    "fv_reward": [0],
+    "pet_limit": ["TamatectAEC"],
+    "description": "A test hard hat for Tamatect. Use it to equip the hat overlay."
+  },
   "coin": {
     "name":{
       "zh_CN":"啵币",

@@ -28,6 +28,11 @@ else:
 
 DEFAULT_THEME_COL = "#009faa"
 
+
+def get_progression_level():
+    return pet_data.fv_lvl
+
+
 HELP_URL = "https://github.com/ChaozhongLiu/DyberPet/issues"
 PROJECT_URL = "https://github.com/ChaozhongLiu/DyberPet"
 DEVDOC_URL = "https://github.com/ChaozhongLiu/DyberPet/blob/main/docs/art_dev.md"

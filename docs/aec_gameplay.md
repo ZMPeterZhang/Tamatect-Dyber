@@ -1,0 +1,31 @@
+# TamatectAEC gameplay
+
+Select the `TamatectAEC` role to enable the AEC loop. It reuses the supplied
+numbered PNG idle frames and the existing focus and Pomodoro timers.
+Its 543x605 source frames are rendered at 15% scale, with matching role
+dimensions so the pet label is not clipped by the desktop window.
+
+- Focus and Pomodoro work minutes grant 1 EXP per minute for the first 120
+  work minutes each day, 0.5 EXP per minute through minute 240, then 0.25 EXP
+  per minute.
+- Every 25 work minutes reduce health by 1 point. Use Sleep from the status
+  menu to restore 1 health every five minutes; waking or starting work cancels
+  sleep.
+- Food continues to restore health through the existing item effects.
+- AEC EXP and Level reuse favorability and its level. Existing AEC EXP/Level
+  save values are migrated to those fields; non-AEC roles retain their current
+  favorability behavior.
+- Eating, working, sleeping, and the BIM model crash event use role-configured
+  PNG actions. Event definitions can apply Health/EXP effects, play an action,
+  and play a role-local sound file from `res/role/<role>/sound/`; Python
+  handlers can be registered for behavior that needs code.
+- The AEC Debug menu provides Health +/-10 and Level +/-1 controls. AEC level
+  drives existing action and item level locks for this role.
+- The AEC Hard Hat collection item is awarded at level 0 for immediate Equip
+  testing and can be worn as a persistent overlay.
+- Existing focus, Pomodoro, task, and item-sale coin rewards are unchanged;
+  work grants EXP without adding a second coin payout.
+
+Daily work minutes and fractional EXP are stored alongside each pet's existing
+save record. Older save records are given defaults when loaded; HP values are
+not converted.

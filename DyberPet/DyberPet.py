@@ -1,6 +1,8 @@
 import sys
 from sys import platform
+import logging
 import time
+import json
 import math
 import types
 import random
@@ -11,9 +13,10 @@ from pathlib import Path
 import pynput.mouse as mouse
 
 from PySide6.QtWidgets import *
-from PySide6.QtCore import Qt, QTimer, QObject, QPoint, QEvent, QElapsedTimer
+from PySide6.QtCore import Qt, QTimer, QObject, QPoint, QEvent, QElapsedTimer, QUrl
 from PySide6.QtCore import QObject, QThread, Signal, QRectF, QRect, QSize, QPropertyAnimation, QAbstractAnimation
 from PySide6.QtGui import QImage, QPixmap, QIcon, QCursor, QPainter, QFont, QFontMetrics, QAction, QBrush, QPen, QColor, QFontDatabase, QPainterPath, QRegion, QIntValidator, QDoubleValidator
+from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 
 from qfluentwidgets import CaptionLabel, setFont, Action #,RoundMenu
 from qfluentwidgets import FluentIcon as FIF
@@ -26,6 +29,7 @@ from DyberPet.modules import *
 from DyberPet.Accessory import MouseMoveManager
 from DyberPet.custom_widgets import RoundBarBase, LevelBadge
 from DyberPet.bubbleManager import BubbleManager
+from DyberPet.aec import AECEventCatalog, AECProgression
 
 # initialize settings
 import DyberPet.settings as settings
@@ -424,6 +428,16 @@ class PetWidget(QWidget):
 
         self._init_ui()
         self._init_widget()
+        self.aec_progression = None
+        self.aec_working = False
+        self.aec_sleeping = False
+        self.aec_event_catalog = AECEventCatalog([])
+        self.aec_event_handlers = {}
+        self.aec_event_player = None
+        self.aec_event_audio_output = None
+        self.aec_sleep_timer = QTimer(self)
+        self.aec_sleep_timer.setInterval(60000)
+        self.aec_sleep_timer.timeout.connect(self._aec_sleep_tick)
         self.init_conf(self.curr_pet_name) # if curr_pet_name else self.pets[0])
 
         #self._set_menu(pets)
@@ -917,7 +931,7 @@ class PetWidget(QWidget):
         setFont(lvlLable, 13, QFont.Normal)
         lvlLable.adjustSize()
         lvlLable.setFixedSize(43, lvlLable.height())
-        self.lvl_badge = LevelBadge(settings.pet_data.fv_lvl)
+        self.lvl_badge = LevelBadge(settings.get_progression_level())
         h_box0.addWidget(lvlLable)
         #h_box0.addStretch(1)
         h_box0.addWidget(self.lvl_badge)
@@ -930,7 +944,7 @@ class PetWidget(QWidget):
         h_box1.setContentsMargins(0,0,0,0) #status_margin,0,0)
         h_box1.setSpacing(5)
         h_box1.setAlignment(Qt.AlignCenter) #AlignBottom | Qt.AlignHCenter)
-        hpLable = CaptionLabel(self.tr("Satiety"))
+        hpLable = CaptionLabel(self.tr("Health" if self.pet_conf.aec_mode else "Satiety"))
         setFont(hpLable, 13, QFont.Normal)
         hpLable.adjustSize()
         hpLable.setFixedSize(43, hpLable.height())
@@ -951,12 +965,16 @@ class PetWidget(QWidget):
         h_box1.addStretch(1)
 
         # favor status
-        fvWidget = QWidget()
+        old_fv_widget = getattr(self, 'fvWidget', None)
+        if old_fv_widget is not None:
+            old_fv_widget.deleteLater()
+        fvWidget = QWidget(self)
+        self.fvWidget = fvWidget
         h_box2 = QHBoxLayout(fvWidget)
         h_box2.setContentsMargins(0,0,0,0) #status_margin,0,0)
         h_box2.setSpacing(5)
         h_box2.setAlignment(Qt.AlignCenter) #Qt.AlignBottom | Qt.AlignHCenter)
-        fvLable = CaptionLabel(self.tr("Favor"))
+        fvLable = CaptionLabel(self.tr("EXP" if self.pet_conf.aec_mode else "Favor"))
         setFont(fvLable, 13, QFont.Normal)
         fvLable.adjustSize()
         fvLable.setFixedSize(43, fvLable.height())
@@ -1005,6 +1023,36 @@ class PetWidget(QWidget):
         #self.StatMenu.addWidget(self.statLabel, selectable=False)
         self.StatMenu.addWidget(lvlWidget, selectable=False)
         self.StatMenu.addWidget(self.statusWidget, selectable=False)
+        if self.pet_conf.aec_mode:
+            self.aec_sleep_action = Action(
+                QIcon(os.path.join(basedir, 'res/icons/moon.svg')),
+                self.tr('Sleep'),
+                triggered=self._toggle_aec_sleep)
+            self.StatMenu.addAction(self.aec_sleep_action)
+
+            self.aec_events_menu = RoundMenu(self.tr('AEC Events'))
+            for event in self.aec_event_catalog:
+                action = Action(self.tr(event['name']), self.aec_events_menu)
+                action.triggered.connect(
+                    lambda checked=False, event_id=event['id']:
+                    self._trigger_aec_special_event(event_id))
+                self.aec_events_menu.addAction(action)
+            self.StatMenu.addMenu(self.aec_events_menu)
+
+            self.aec_debug_menu = RoundMenu(self.tr('AEC Debug'))
+            debug_actions = [
+                ('Health +10', 'debug_health_up'),
+                ('Health -10', 'debug_health_down'),
+                ('Level +1', 'debug_level_up'),
+                ('Level -1', 'debug_level_down'),
+            ]
+            for label, event in debug_actions:
+                action = Action(self.tr(label), self.aec_debug_menu)
+                action.triggered.connect(
+                    lambda checked=False, event_name=event:
+                    self._handle_aec_event(event_name))
+                self.aec_debug_menu.addAction(action)
+            self.StatMenu.addMenu(self.aec_debug_menu)
         #self.StatMenu.addWidget(fvbar, selectable=False)
         self.StatMenu.addSeparator()
 
@@ -1073,7 +1121,7 @@ class PetWidget(QWidget):
         #self.workers['Animation'].fvchange(settings.pet_data.fv_lvl)
 
         # Animation config data update
-        settings.act_data._pet_refreshed(settings.pet_data.fv_lvl)
+        settings.act_data._pet_refreshed(settings.get_progression_level())
         self.refresh_acts.emit()
 
         # cancel default animation if any
@@ -1160,6 +1208,8 @@ class PetWidget(QWidget):
         :param pet_name: 宠物名称
         :return:
         """
+        self._stop_aec_sleep()
+        self.aec_working = False
         self.curr_pet_name = pet_name
         settings.petname = pet_name
         settings.tunable_scale = settings.scale_dict.get(pet_name, 1.0)
@@ -1168,9 +1218,16 @@ class PetWidget(QWidget):
         
         self.margin_value = 0 #0.1 * max(self.pet_conf.width, self.pet_conf.height) # 用于将widgets调整到合适的大小
         # Add customized animation
-        settings.act_data.init_actData(pet_name, settings.pet_data.hp_tier, settings.pet_data.fv_lvl)
-        self._load_custom_anim()
         settings.pet_conf = self.pet_conf
+        if self.pet_conf.aec_mode:
+            settings.pet_data.migrate_aec_progression()
+            self.aec_progression = AECProgression(settings.pet_data)
+            self.aec_event_catalog = self._load_aec_event_catalog()
+        else:
+            self.aec_progression = None
+            self.aec_event_catalog = AECEventCatalog([])
+        settings.act_data.init_actData(pet_name, settings.pet_data.hp_tier, settings.get_progression_level())
+        self._load_custom_anim()
 
         # Update coin name and image according to the pet config
         if self.pet_conf.coin_config:
@@ -1394,6 +1451,10 @@ class PetWidget(QWidget):
             return
         if status not in ['hp','fv']:
             return
+        if status == 'hp' and from_mod == 'Scheduler' and self.pet_conf.aec_mode:
+            return
+        if status == 'fv' and from_mod == 'Scheduler' and self.pet_conf.aec_mode:
+            return
         elif status == 'hp':
             
             diff = self.pet_hp.updateValue(change_value, from_mod)
@@ -1411,9 +1472,9 @@ class PetWidget(QWidget):
             else:
                 return
             if status == 'hp':
-                message = self.tr('Satiety') + " " f'{diff}'
+                message = self.tr('Health' if self.pet_conf.aec_mode else 'Satiety') + " " f'{diff}'
             else:
-                message = self.tr('Favorability') + " " f'{diff}' #'好感度 %s'%diff
+                message = self.tr('EXP' if self.pet_conf.aec_mode else 'Favorability') + " " f'{diff}'
             self.register_notification('status_%s'%status, message)
         
         # Periodically triggered events
@@ -1431,6 +1492,182 @@ class PetWidget(QWidget):
 
     def _fv_updated(self, fv, fv_lvl):
         self.fv_updated.emit(fv, fv_lvl)
+
+    def _stop_aec_sleep(self):
+        was_sleeping = self.aec_sleeping
+        self.aec_sleep_timer.stop()
+        self.aec_sleeping = False
+        if self.aec_progression:
+            self.aec_progression.reset_rest()
+        if hasattr(self, 'aec_sleep_action'):
+            self.aec_sleep_action.setText(self.tr('Sleep'))
+        if was_sleeping:
+            self._set_aec_animation_state('idle')
+
+    def _toggle_aec_sleep(self):
+        if not self.pet_conf.aec_mode:
+            return
+        if self.aec_sleeping:
+            self._handle_aec_event('sleep_wake')
+            return
+        if self.aec_working:
+            return
+        self._handle_aec_event('sleep_start')
+
+    def _aec_sleep_tick(self):
+        self._handle_aec_event('sleep_minute')
+
+    def _set_aec_animation_state(self, state):
+        if 'Animation' in self.workers:
+            self.workers['Animation'].set_aec_state(state)
+
+    def _load_aec_event_catalog(self):
+        path = os.path.join(
+            basedir, 'res', 'role', self.curr_pet_name, 'event_conf.json')
+        if not os.path.isfile(path):
+            return AECEventCatalog([])
+
+        with open(path, 'r', encoding='UTF-8') as event_file:
+            event_config = json.load(event_file)
+        catalog = AECEventCatalog(event_config.get('events', []))
+        for event in catalog:
+            animation = event.get('animation')
+            if animation and animation not in self.pet_conf.act_name:
+                raise ValueError(
+                    f"AEC event {event['id']!r} references unknown action {animation!r}")
+            sound = event.get('sound')
+            if sound:
+                sound_path = os.path.join(
+                    basedir, 'res', 'role', self.curr_pet_name, 'sound', sound)
+                if not os.path.isfile(sound_path):
+                    raise FileNotFoundError(
+                        f"AEC event {event['id']!r} references missing sound {sound!r}")
+        return catalog
+
+    def register_aec_event_handler(self, handler_name, handler):
+        if not isinstance(handler_name, str) or not handler_name:
+            raise ValueError('AEC event handler names must be non-empty strings')
+        if not callable(handler):
+            raise TypeError('AEC event handlers must be callable')
+        self.aec_event_handlers[handler_name] = handler
+
+    def _trigger_aec_special_event(self, event_id):
+        if not self.pet_conf.aec_mode:
+            return
+
+        event = self.aec_event_catalog[event_id]
+        for stat, change in event.get('effects', {}).items():
+            self._change_status(stat, change, from_mod='AEC', send_note=True)
+
+        handler_name = event.get('handler')
+        if handler_name:
+            handler = self.aec_event_handlers.get(handler_name)
+            if handler is None:
+                raise KeyError(f"No AEC event handler registered for {handler_name!r}")
+            handler(self, event)
+
+        if event.get('message'):
+            self.register_notification('status_aec', self.tr(event['message']))
+        if event.get('animation'):
+            self._show_act(event['animation'])
+        if event.get('sound'):
+            self._play_aec_event_sound(event['sound'])
+
+    def _play_aec_event_sound(self, sound_name):
+        sound_path = os.path.join(
+            basedir, 'res', 'role', self.curr_pet_name, 'sound', sound_name)
+        if not os.path.isfile(sound_path):
+            raise FileNotFoundError(f"AEC event sound does not exist: {sound_path}")
+
+        if self.aec_event_player is None:
+            self.aec_event_audio_output = QAudioOutput(self)
+            self.aec_event_player = QMediaPlayer(self)
+            self.aec_event_player.setAudioOutput(self.aec_event_audio_output)
+            self.aec_event_player.errorOccurred.connect(
+                self._log_aec_event_audio_error)
+
+        self.aec_event_player.stop()
+        self.aec_event_audio_output.setVolume(settings.volume)
+        self.aec_event_player.setSource(QUrl.fromLocalFile(sound_path))
+        self.aec_event_player.play()
+
+    @staticmethod
+    def _log_aec_event_audio_error(error, error_string):
+        if error_string:
+            logging.getLogger(__name__).error(
+                "AEC event audio playback failed: %s", error_string)
+
+    def _handle_aec_event(self, event):
+        if not self.aec_progression:
+            return
+        if event == 'work_start':
+            self._stop_aec_sleep()
+            self.aec_working = True
+            self.aec_progression.reset_rest()
+            self._set_aec_animation_state('work')
+            return
+        if event == 'work_end':
+            self.aec_working = False
+            self._set_aec_animation_state('idle')
+            return
+        if event == 'sleep_start':
+            if self.aec_working:
+                return
+            self.aec_sleeping = True
+            self.aec_progression.reset_rest()
+            self.aec_sleep_timer.start()
+            if hasattr(self, 'aec_sleep_action'):
+                self.aec_sleep_action.setText(self.tr('Wake up'))
+            self._set_aec_animation_state('sleep')
+            return
+        if event == 'sleep_wake':
+            self._stop_aec_sleep()
+            self._set_aec_animation_state('work' if self.aec_working else 'idle')
+            return
+        if event == 'debug_health_up':
+            self._change_status('hp', 10, from_mod='AEC', send_note=True)
+            return
+        if event == 'debug_health_down':
+            self._change_status('hp', -10, from_mod='AEC', send_note=True)
+            return
+        if event == 'debug_level_up':
+            self._debug_adjust_aec_level(1)
+            return
+        if event == 'debug_level_down':
+            self._debug_adjust_aec_level(-1)
+            return
+        if event == 'work_minute':
+            self._stop_aec_sleep()
+            health_change, exp_gain = self.aec_progression.work_minute()
+        elif event == 'rest_minute':
+            return
+        elif event == 'sleep_minute':
+            if not self.aec_sleeping:
+                return
+            health_change = self.aec_progression.rest_minute()
+            exp_gain = 0
+        else:
+            return
+
+        if exp_gain:
+            self._change_status('fv', exp_gain, from_mod='AEC', send_note=True)
+        if health_change:
+            self._change_status('hp', health_change, from_mod='AEC', send_note=True)
+
+    def _debug_adjust_aec_level(self, direction):
+        current_level = settings.pet_data.fv_lvl
+        new_level = min(
+            max(current_level + direction, 0), len(settings.LVL_BAR) - 1)
+        if new_level == current_level:
+            return
+
+        fv = min(settings.pet_data.fv, settings.LVL_BAR[new_level])
+        settings.pet_data.change_fv(fv, new_level)
+        self.pet_fv.init_FV(fv, new_level)
+        self.fvchange(new_level, reward_items=False, notify=False)
+        self.refresh_bag.emit()
+        self.register_notification(
+            'status_aec', self.tr('Debug level set to {0}').format(new_level))
 
 
     def _change_time(self, status, timeleft):
@@ -1853,17 +2090,23 @@ class PetWidget(QWidget):
         self.hptier_changed_main_note.emit(hp_tier, direction)
         #self._update_statusTitle(hp_tier)
 
-    def fvchange(self, fv_lvl):
+    def fvchange(self, fv_lvl, reward_items=True, notify=True):
+        previous_level = self.lvl_badge.level
         if fv_lvl == -1:
-            self.fvlvl_changed_main_note.emit(fv_lvl)
+            if notify:
+                self.fvlvl_changed_main_note.emit(fv_lvl)
+            fv_lvl = settings.pet_data.fv_lvl
         else:
             self.workers['Animation'].fvchange(fv_lvl)
-            self.fvlvl_changed_main_note.emit(fv_lvl)
-            self.fvlvl_changed_main_inve.emit(fv_lvl)
-            self._update_fvlock()
-            self.lvl_badge.set_level(fv_lvl)
+            if notify:
+                self.fvlvl_changed_main_note.emit(fv_lvl)
+            if reward_items:
+                self.fvlvl_changed_main_inve.emit(fv_lvl)
+        self._update_fvlock()
+        self.lvl_badge.set_level(fv_lvl)
         self.refresh_acts.emit()
-        self.bubble_manager.trigger_bubble(bb_type="fv_lvlup")
+        if notify and fv_lvl > previous_level:
+            self.bubble_manager.trigger_bubble(bb_type="fv_lvlup")
 
     def runInteraction(self):
         # Create thread for Interaction Module
@@ -1901,6 +2144,7 @@ class PetWidget(QWidget):
         self.workers['Scheduler'].sig_settime_sche.connect(self._change_time)
         self.workers['Scheduler'].sig_addItem_sche.connect(self.add_item)
         self.workers['Scheduler'].sig_setup_bubble.connect(self._process_greeting_mssg)
+        self.workers['Scheduler'].sig_aec_event.connect(self._handle_aec_event)
 
         # Start the thread
         self.threads['Scheduler'].start()

@@ -1,0 +1,68 @@
+{
+  "width": 543,
+  "height": 605,
+  "scale": 0.15,
+  "refresh": 5,
+  "interact_speed": 0.02,
+  "aec_mode": true,
+  "default": "default",
+  "up": "default",
+  "down": "default",
+  "left": "default",
+  "right": "default",
+  "drag": "drag",
+  "fall": "fall",
+  "on_floor": "default",
+  "aec_actions": {
+    "work": "work",
+    "sleep": "sleep"
+  },
+  "accessory_act": [
+    {
+      "name": "AEC Hard Hat",
+      "act_list": [],
+      "acc_list": ["aec_hard_hat"],
+      "act_type": [0, 10000],
+      "anchor": [-271, -605],
+      "act_prob": 0.0,
+      "acc_type": "equip",
+      "follow_main": true,
+      "timeout": false,
+      "unique": true,
+      "closable": true,
+      "above_main": true
+    }
+  ],
+  "random_act": [
+    {
+      "name": "Idle",
+      "act_list": ["default"],
+      "act_prob": 1.0,
+      "act_type": [2, 0]
+    },
+    {
+      "name": "feed_1",
+      "act_list": ["feed_1"],
+      "follow_mouse": true,
+      "act_type": [2, 0]
+    },
+    {
+      "name": "feed_2",
+      "act_list": ["feed_2"],
+      "follow_mouse": true,
+      "act_type": [2, 0]
+    },
+    {
+      "name": "feed_3",
+      "act_list": ["feed_3"],
+      "follow_mouse": true,
+      "act_type": [2, 0]
+    },
+    {
+      "name": "bim_crash",
+      "act_list": ["bim_crash"],
+      "follow_mouse": true,
+      "act_type": [2, 0]
+    }
+  ]
+}

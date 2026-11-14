@@ -1,0 +1,14 @@
+{
+  "events": [
+    {
+      "id": "bim_crash",
+      "name": "BIM model crash",
+      "effects": {
+        "hp": -10
+      },
+      "animation": "bim_crash",
+      "sound": "metal-pipe-fall-meme.mp3",
+      "message": "BIM model crashed. Tamatect lost 10 Health."
+    }
+  ]
+}

@@ -309,7 +309,7 @@ class StatusCard(SimpleCardWidget):
         setFont(lvlLable, 13, QFont.Normal)
         lvlLable.adjustSize()
         lvlLable.setFixedSize(48, lvlLable.height())
-        self.lvl_badge = LevelBadge(settings.pet_data.fv_lvl, 18)
+        self.lvl_badge = LevelBadge(settings.get_progression_level(), 18)
         self.lvl_badge.setFixedSize(self.lvl_badge.width(), 20)
         h_box0.addWidget(lvlLable)
         #h_box0.addStretch(1)
@@ -386,7 +386,8 @@ class HPWidget(QWidget):
 
     def _init_widget(self):
 
-        hpLable = CaptionLabel(self.tr("Satiety"))
+        aec_mode = getattr(getattr(settings, 'pet_conf', None), 'aec_mode', False)
+        hpLable = CaptionLabel(self.tr("Health" if aec_mode else "Satiety"))
         setFont(hpLable, 13, QFont.Normal)
         hpLable.adjustSize()
         hpLable.setFixedSize(48, hpLable.height())
@@ -465,7 +466,8 @@ class FVWidget(QWidget):
 
     def _init_widget(self):
 
-        fvLable = CaptionLabel(self.tr("Favor"))
+        aec_mode = getattr(getattr(settings, 'pet_conf', None), 'aec_mode', False)
+        fvLable = CaptionLabel(self.tr("EXP" if aec_mode else "Favor"))
         setFont(fvLable, 13, QFont.Normal)
         fvLable.adjustSize()
         fvLable.setFixedSize(48, fvLable.height())
@@ -1551,10 +1553,10 @@ class ShopItemWidget(SimpleCardWidget):
         self._init_Card()
 
     def _getLockStat(self):
-        unlocked = settings.pet_data.fv_lvl >= self.fv_lock and settings.petname in self.pet_limit
+        unlocked = settings.get_progression_level() >= self.fv_lock and settings.petname in self.pet_limit
         if settings.petname not in self.pet_limit:
             self.locked_reason = 'PETLIMIT'
-        elif settings.pet_data.fv_lvl < self.fv_lock:
+        elif settings.get_progression_level() < self.fv_lock:
             self.locked_reason = 'FVLOCK'
         else:
             self.locked_reason = 'NONE'

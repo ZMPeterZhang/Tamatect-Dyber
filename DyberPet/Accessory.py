@@ -360,6 +360,7 @@ class QAccessory(QWidget):
         self.follow_main = acc_act.get('follow_main', False)
         self.delay_respond = 500 #ms
         self.delay_timer = 500 #ms
+        self.main_falling = False
         self.speed_follow_main = acc_act.get('speed_follow_main', 5)
         self.at_destination = True
         self.move_right = False
@@ -512,6 +513,22 @@ class QAccessory(QWidget):
 
     def update_main_pos(self, pos_x, pos_y):
         if self.follow_main:
+            is_falling = self._main_is_falling()
+            if not is_falling:
+                self.main_falling = False
+                self.destination = [
+                    pos_x + self.current_anchor[0],
+                    pos_y + self.current_anchor[1],
+                ]
+                self.at_destination = True
+                self.move_right = False
+                self.delay_timer = 0
+                self.move(*self.destination)
+                return
+            if not self.main_falling:
+                self.delay_timer = self.delay_respond
+            self.main_falling = True
+
             x_new = pos_x+self.current_anchor[0] - self.pos().x()
             y_pos = pos_y+self.current_anchor[1] - self.pos().y()
             if self.speed_follow_main*5 <= ((x_new**2 + y_pos**2)**0.5):
@@ -519,6 +536,10 @@ class QAccessory(QWidget):
                 self.destination = [pos_x+self.current_anchor[0], pos_y+self.current_anchor[1]]
                 #if self.delay_respond == self.delay_time:
                 #self.move(pos_x-self.anchor[0]*settings.tunable_scale, pos_y-self.anchor[1]*settings.tunable_scale)
+
+    @staticmethod
+    def _main_is_falling():
+        return bool(settings.set_fall) and settings.onfloor == 0 and not settings.draging
 
     def img_from_act(self, act):
 
@@ -649,7 +670,7 @@ class QAccessory(QWidget):
             #plus_y = movement_y
             self.move_right = False
             self.at_destination = True
-            self.delay_timer = self.delay_respond
+            self.delay_timer = self.delay_respond if self._main_is_falling() else 0
             return
 
         self.move(self.pos().x()+plus_x, self.pos().y()+plus_y)
@@ -1320,7 +1341,7 @@ class SubPet(QWidget):
                 pet_fvlvl = pet_data.get('FV_lvl', 0)
                 select_acts = [_build_act(self.pet_conf.act_name[i], self.act_menu, self._show_act) for i in range(len(self.pet_conf.act_name)) if (self.pet_conf.act_type[i][1] <= pet_fvlvl) and self.pet_conf.act_name[i] is not None]
             else:
-                select_acts = [_build_act(self.pet_conf.act_name[i], self.act_menu, self._show_act) for i in range(len(self.pet_conf.act_name)) if (self.pet_conf.act_type[i][1] <= settings.pet_data.fv_lvl) and self.pet_conf.act_name[i] is not None]
+                select_acts = [_build_act(self.pet_conf.act_name[i], self.act_menu, self._show_act) for i in range(len(self.pet_conf.act_name)) if (self.pet_conf.act_type[i][1] <= settings.get_progression_level()) and self.pet_conf.act_name[i] is not None]
             self.act_menu.addActions(select_acts)
         
         if self.pet_conf.acc_name: # is not None:
@@ -1329,7 +1350,7 @@ class SubPet(QWidget):
                 pet_fvlvl = pet_data.get('FV_lvl', 0)
                 select_accs = [_build_act(self.pet_conf.acc_name[i], self.act_menu, self._show_acc) for i in range(len(self.pet_conf.acc_name)) if (self.pet_conf.accessory_act[self.pet_conf.acc_name[i]]['act_type'][1] <= pet_fvlvl) ]
             else:
-                select_accs = [_build_act(self.pet_conf.acc_name[i], self.act_menu, self._show_acc) for i in range(len(self.pet_conf.acc_name)) if (self.pet_conf.accessory_act[self.pet_conf.acc_name[i]]['act_type'][1] <= settings.pet_data.fv_lvl) ]
+                select_accs = [_build_act(self.pet_conf.acc_name[i], self.act_menu, self._show_acc) for i in range(len(self.pet_conf.acc_name)) if (self.pet_conf.accessory_act[self.pet_conf.acc_name[i]]['act_type'][1] <= settings.get_progression_level()) ]
             self.act_menu.addActions(select_accs)
 
         menu.addMenu(self.act_menu)
