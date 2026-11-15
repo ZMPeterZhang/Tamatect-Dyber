@@ -1,0 +1,12 @@
+{
+  "lamp": {
+    "image": "lamp.png",
+    "type": "collection",
+    "cost": 5,
+    "fv_lock": 0,
+    "pet_limit": [
+      "Tamatect"
+    ],
+    "description": "A placeable item. Uses one placement slot."
+  }
+}

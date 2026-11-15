@@ -34,3 +34,21 @@ role are migrated to `Tamatect`.
 Daily work minutes and fractional EXP are stored alongside each pet's existing
 save record. Older save records are given defaults when loaded; HP values are
 not converted.
+
+## Placeable items
+
+The status menu's **Edit Items** action manages owned, visible layer items.
+Placeable items can be added from the AEC Debug menu with **Add Shop Item…**;
+the importer also supports one-use health consumables. Use a collection item
+from the Backpack to place or withdraw it. Placeable items use one slot each,
+starting with two slots and gaining one per progression level.
+
+Each static layer is stored as a paired PNG and JSON file under
+`res/role/<role>/layers/`. The JSON `inventory_item` field links it to the
+exact collection name in the role's `items/items_config.json`. The editor
+supports repositioning, scaling, flipping, ordering, and withdrawing these
+layers. Owned, single-frame `equip` accessories defined by the role's legacy
+`accessory_act` configuration are also bridged into editable layers when used.
+Animated accessories remain on their existing path. During a fall, equipped
+layers follow the pet's recent path with the existing accessory delay and settle
+back onto the pet after landing.

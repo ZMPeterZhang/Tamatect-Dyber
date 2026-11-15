@@ -4,6 +4,7 @@ import logging
 import time
 import json
 import math
+import re
 import types
 import random
 import inspect
@@ -27,7 +28,7 @@ from .custom_roundmenu import RoundMenu
 from DyberPet.conf import *
 from DyberPet.utils import *
 from DyberPet.modules import *
-from DyberPet.Accessory import MouseMoveManager
+from DyberPet.Accessory import ItemLayerFall, MouseMoveManager
 from DyberPet.custom_widgets import RoundBarBase, LevelBadge
 from DyberPet.bubbleManager import BubbleManager
 from DyberPet.aec import (
@@ -417,6 +418,8 @@ class PetWidget(QWidget):
 
         self.image = None
         self.tray = None
+        self.item_layers = {}
+        self.item_layer_fall = None
 
         # 鼠标拖拽初始属性
         self.is_follow_mouse = False
@@ -523,6 +526,9 @@ class PetWidget(QWidget):
             # 左键绑定拖拽
             self.is_follow_mouse = True
             self.mouse_drag_pos = event.globalPos() - self.pos()
+            if self.item_layer_fall is not None and self.item_layer_fall.is_active():
+                self.item_layer_fall.stop()
+                self._render_pet_frame()
             
             if settings.onfloor == 0:
             # Left press activates Drag interaction
@@ -639,11 +645,13 @@ class PetWidget(QWidget):
                         settings.fall_right = True
                     else:
                         settings.fall_right = False
+                    self._start_item_layer_fall()
 
                 else:
                     settings.draging=0
                     self._move_customized(0,0)
                     settings.current_img = self.pet_conf.default.images[0]
+                    settings.current_img_mirrored = False
                     self.set_img()
                     self.workers['Animation'].resume()
             self.mouse_moving = False
@@ -1106,6 +1114,10 @@ class PetWidget(QWidget):
                     lambda checked=False, event_name=event:
                     self._handle_aec_event(event_name))
                 self.aec_debug_menu.addAction(action)
+            from .debug_shop_items import add_shop_item
+            add_item = Action(self.tr('Add Shop Item…'), self.aec_debug_menu)
+            add_item.triggered.connect(lambda: add_shop_item(self))
+            self.aec_debug_menu.addAction(add_item)
             self.StatMenu.addMenu(self.aec_debug_menu)
         #self.StatMenu.addWidget(fvbar, selectable=False)
         self.StatMenu.addSeparator()
@@ -1121,6 +1133,7 @@ class PetWidget(QWidget):
         self.StatMenu.addMenu(self.act_menu)
         self.StatMenu.addMenu(self.companion_menu)
         self.StatMenu.addMenu(self.change_menu)
+        self.StatMenu.addAction(Action(FIF.EDIT, self.tr("Edit Items"), triggered=self._edit_item))
         self.StatMenu.addSeparator()
         
         self.StatMenu.addActions([
@@ -1132,6 +1145,87 @@ class PetWidget(QWidget):
     #     statusText = self.tr("Status: ") + f"{settings.TIER_NAMES[hp_tier]}"
     #     self.statLabel.setText(statusText)
 
+
+    def _edit_item(self):
+        from .item_layout_editor import ItemLayoutEditor
+
+        if getattr(self, 'item_layout_editor', None) is not None:
+            self.item_layout_editor.raise_()
+            return
+        dialog = ItemLayoutEditor(self)
+        self.item_layout_editor = dialog
+        dialog.finished.connect(self._close_item_layout_editor)
+        dialog.show()
+
+    def _close_item_layout_editor(self):
+        dialog = self.item_layout_editor
+        self.item_layout_editor = None
+        dialog.deleteLater()
+
+    def _item_bounds(self, layer):
+        bounds = QRect(layer['bounds'])
+        if layer['flipped']:
+            bounds.moveLeft(layer['image'].width() - bounds.x() - bounds.width())
+        return bounds
+
+    def _maximum_item_percent(self, layer):
+        bounds = layer['bounds']
+        return max(1, min(500, int(100 * min(
+            self.item_canvas.width() / bounds.width(),
+            self.item_canvas.height() / bounds.height(),
+        ))))
+
+    def _bounded_item_offset(self, layer, offset):
+        bounds, size = self._item_bounds(layer), layer['scale']
+        x, y = offset
+        return (
+            max(-bounds.x() * size, min(x, self.item_canvas.width() - (bounds.x() + bounds.width()) * size)),
+            max(-bounds.y() * size, min(y, self.item_canvas.height() - (bounds.y() + bounds.height()) * size)),
+        )
+
+    def _write_item_layer(self, layer):
+        path = layer['path']
+        temporary = path.with_suffix('.tmp')
+        image_path = path.with_suffix('.png')
+        temporary_image = image_path.with_suffix(image_path.suffix + '.tmp')
+        x, y = layer['offset']
+        config = dict(layer['config'], offset_x=x, offset_y=y, scale=layer['scale'],
+                      visible=layer['visible'], flipped=layer['flipped'])
+        created_image = False
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if not image_path.exists():
+                if not layer['image'].save(str(temporary_image), 'PNG'):
+                    raise OSError('Could not save the item artwork.')
+                temporary_image.replace(image_path)
+                created_image = True
+            temporary.write_text(json.dumps(config, indent=2) + chr(10), encoding='utf-8')
+            temporary.replace(path)
+        except OSError:
+            if temporary_image.exists():
+                temporary_image.unlink()
+            if created_image and image_path.exists():
+                image_path.unlink()
+            if temporary.exists():
+                temporary.unlink()
+            QMessageBox.warning(self, self.tr("Edit Items"), self.tr("Could not save the item position."))
+            return False
+        layer['config'] = config
+        return True
+
+    def _item_slot_limit(self):
+        return 2 + max(0, settings.get_progression_level())
+
+    def _can_edit_layer(self, layer):
+        item = layer['config'].get('inventory_item')
+        return not item or settings.pet_data.items.get(item, (None, 0))[1] > 0
+
+    def _placed_item_count(self):
+        return sum(
+            bool(layer['visible'])
+            for layer in self.item_layers.values()
+            if layer['config'].get('inventory_item') and self._can_edit_layer(layer)
+        )
 
     def _show_Staus_menu(self):
         """
@@ -1263,6 +1357,8 @@ class PetWidget(QWidget):
         :param pet_name: 宠物名称
         :return:
         """
+        if self.item_layer_fall is not None:
+            self.item_layer_fall.stop()
         self.aec_process_timer.stop()
         self._stop_aec_sleep()
         self.aec_working = False
@@ -1275,6 +1371,13 @@ class PetWidget(QWidget):
         self.aec_display_work_profile = None
         self.curr_pet_name = pet_name
         settings.petname = pet_name
+        self.item_layers = {}
+        self._load_item_layers(pet_name)
+        settings.equipped_item_layers = {
+            layer['config']['inventory_item']: layer
+            for layer in self.item_layers.values()
+            if layer['config'].get('inventory_item')
+        }
         settings.tunable_scale = settings.scale_dict.get(pet_name, 1.0)
         pic_dict = _load_all_pic(pet_name)
         self.pet_conf = PetConfig.init_config(self.curr_pet_name, pic_dict) #settings.size_factor)
@@ -1393,9 +1496,11 @@ class PetWidget(QWidget):
 
         settings.previous_img = settings.current_img
         settings.current_img = self.pet_conf.default.images[0] #list(pic_dict.values())[0]
+        settings.current_img_mirrored = False
         settings.previous_anchor = [0, 0] #settings.current_anchor
         settings.current_anchor = [int(i*settings.tunable_scale) for i in self.pet_conf.default.anchor]
         self.set_img()
+        self._load_legacy_accessory_layers()
         self.border = self.pet_conf.width/2
 
         
@@ -1467,6 +1572,133 @@ class PetWidget(QWidget):
             + GROUND_DETECTION_OFFSET
         )
 
+    def _load_item_layers(self, pet_name):
+        from pathlib import Path
+
+        self.item_layers = {}
+        folder = Path(basedir) / 'res' / 'role' / pet_name
+        layer_folder = folder / 'layers'
+        if not layer_folder.is_dir():
+            return
+        with (folder / 'pet_conf.json').open(encoding='utf-8-sig') as handle:
+            character = json.load(handle)
+        self.item_canvas = QSize(character['width'], character['height'])
+        for path in sorted(layer_folder.glob('*.json')):
+            try:
+                config = json.loads(path.read_text(encoding='utf-8-sig'))
+                image = QPixmap(str(path.with_suffix('.png')))
+                offset = (float(config.get('offset_x', 0)), float(config.get('offset_y', 0)))
+                scale = min(5.0, max(0.01, float(config.get('scale', 1.0))))
+            except (OSError, ValueError, AttributeError, TypeError) as error:
+                logging.warning("Skipping invalid item layer %s: %s", path, error)
+                continue
+            if image.isNull():
+                logging.warning("Skipping item layer with missing or invalid artwork: %s", path)
+                continue
+            bounds = QRegion(image.mask()).boundingRect()
+            if bounds.isEmpty():
+                logging.warning("Skipping item layer with empty artwork: %s", path)
+                continue
+            layer = {
+                'name': config.get('name') or path.stem.replace('_', ' ').title(),
+                'image': image,
+                'offset': offset,
+                'path': path,
+                'config': config,
+                'scale': scale,
+                'visible': config.get('visible', True),
+                'bounds': bounds,
+                'flipped': bool(config.get('flipped', False)),
+                'flipped_image': QPixmap.fromImage(image.toImage().mirrored(True, False)),
+            }
+            layer['scale'] = min(scale, self._maximum_item_percent(layer) / 100)
+            layer['offset'] = self._bounded_item_offset(layer, offset)
+            self.item_layers[path.stem] = layer
+        self.item_layers = dict(sorted(
+            self.item_layers.items(),
+            key=lambda pair: pair[1]['config'].get('draw_order', 0),
+        ))
+
+    def _load_legacy_accessory_layers(self):
+        existing_items = {
+            layer['config'].get('inventory_item')
+            for layer in self.item_layers.values()
+        }
+        layer_folder = Path(basedir) / 'res' / 'role' / self.curr_pet_name / 'layers'
+        draw_order = max(
+            (layer['config'].get('draw_order', 0) for layer in self.item_layers.values()),
+            default=-1,
+        ) + 1
+        for item_name, accessory in self.pet_conf.accessory_act.items():
+            item_config = settings.items_data.item_dict.get(item_name)
+            if (item_name in existing_items
+                    or item_config is None
+                    or item_config['item_type'] != 'collection'
+                    or accessory.get('acc_type') != 'equip'
+                    or accessory.get('act_list')):
+                continue
+            accessories = accessory.get('acc_list', [])
+            if len(accessories) != 1:
+                continue
+            frames = getattr(accessories[0], 'images', [])
+            if len(frames) != 1:
+                continue
+            image = frames[0]
+            if image.isNull():
+                continue
+            bounds = QRegion(image.mask()).boundingRect()
+            if bounds.isEmpty():
+                continue
+            slug = re.sub(r'[^a-z0-9]+', '_', item_name.lower()).strip('_')
+            path = layer_folder / f'{slug}_accessory.json'
+            anchor = accessory.get('anchor', [0, 0])
+            accessory_origin = self.label.mapFrom(
+                self,
+                QPoint(
+                    self.width() // 2 + round(anchor[0] * settings.tunable_scale),
+                    self.height() + round(anchor[1] * settings.tunable_scale),
+                ),
+            )
+            scale_x = self.label.width() / self.item_canvas.width()
+            scale_y = self.label.height() / self.item_canvas.height()
+            offset = (accessory_origin.x() / scale_x, accessory_origin.y() / scale_y)
+            config = {
+                'name': item_name,
+                'inventory_item': item_name,
+                'offset_x': offset[0],
+                'offset_y': offset[1],
+                'scale': 1,
+                'visible': False,
+                'flipped': False,
+                'draw_order': draw_order,
+            }
+            layer = {
+                'name': item_name,
+                'image': image,
+                'offset': offset,
+                'path': path,
+                'config': config,
+                'scale': 1,
+                'visible': False,
+                'bounds': bounds,
+                'flipped': False,
+                'flipped_image': QPixmap.fromImage(image.toImage().mirrored(True, False)),
+            }
+            layer['scale'] = min(1.0, self._maximum_item_percent(layer) / 100)
+            layer['offset'] = self._bounded_item_offset(layer, layer['offset'])
+            self.item_layers[path.stem] = layer
+            existing_items.add(item_name)
+            draw_order += 1
+        self.item_layers = dict(sorted(
+            self.item_layers.items(),
+            key=lambda pair: pair[1]['config'].get('draw_order', 0),
+        ))
+        settings.equipped_item_layers = {
+            layer['config']['inventory_item']: layer
+            for layer in self.item_layers.values()
+            if layer['config'].get('inventory_item')
+        }
+
     def set_img(self): #, img: QImage) -> None:
         """
         为窗体设置图片
@@ -1484,13 +1716,66 @@ class PetWidget(QWidget):
         # HighDPI-compatible scaling solution
         # self.label.setScaledContents(True)
         self.label.setFixedSize(width_tmp, height_tmp)
-        self.label.setPixmap(settings.current_img) #QPixmap.fromImage(settings.current_img))
+        self._render_pet_frame()
+
+    def _start_item_layer_fall(self):
+        if not any(layer['visible'] and self._can_edit_layer(layer)
+                   for layer in self.item_layers.values()):
+            return
+        if self.item_layer_fall is None:
+            self.item_layer_fall = ItemLayerFall(self)
+            self.item_layer_fall.settled.connect(self._render_pet_frame)
+        self.item_layer_fall.start()
+        self._render_pet_frame()
+
+    def _render_pet_frame(self):
+        image = settings.current_img
+        layers = self.item_layers
+        mirrored = getattr(settings, 'current_img_mirrored', False)
+        if self.item_layer_fall is not None and self.item_layer_fall.is_active():
+            image = self._compose_item_layers(image, {}, target_size=self.label.size())
+            overlay = QPixmap(image.size())
+            overlay.fill(Qt.transparent)
+            self.item_layer_fall.set_frame(self._compose_item_layers(overlay, layers, mirrored))
+        else:
+            image = self._compose_item_layers(image, layers, mirrored, self.label.size())
+        self.label.setPixmap(image)
+        self.image = image
         # previous scaling soluton
         #self.label.resize(width_tmp, height_tmp)
         #self.label.setPixmap(QPixmap.fromImage(settings.current_img.scaled(width_tmp, height_tmp,
         #                                                                 aspectMode=Qt.KeepAspectRatio,
         #                                                                 mode=Qt.SmoothTransformation)))
-        self.image = settings.current_img
+
+    def _compose_item_layers(self, image, layers, mirrored=False, target_size=None):
+        if image.isNull():
+            return image
+        if layers and mirrored:
+            image = QPixmap.fromImage(image.toImage().mirrored(True, False))
+        if target_size is not None and target_size.isValid() and image.size() != target_size:
+            image = image.scaled(target_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        if layers:
+            image = image.copy()
+            scale_x = image.width() / self.item_canvas.width()
+            scale_y = image.height() / self.item_canvas.height()
+            painter = QPainter(image)
+            painter.setRenderHint(QPainter.SmoothPixmapTransform)
+            for layer in layers.values():
+                if not layer['visible'] or not self._can_edit_layer(layer):
+                    continue
+                item = layer['flipped_image'] if layer['flipped'] else layer['image']
+                x, y = layer['offset']
+                painter.drawPixmap(
+                    QRectF(x * scale_x, y * scale_y,
+                           item.width() * scale_x * layer['scale'],
+                           item.height() * scale_y * layer['scale']),
+                    item,
+                    QRectF(item.rect()),
+                )
+            painter.end()
+            if mirrored:
+                image = QPixmap.fromImage(image.toImage().mirrored(True, False))
+        return image
 
     def _compensate_rewards(self):
         self.compensate_rewards.emit()
@@ -1901,6 +2186,23 @@ class PetWidget(QWidget):
             self.focus_time.setFormat('')
 
     def use_item(self, item_name):
+        for layer in self.item_layers.values():
+            if layer['config'].get('inventory_item') == item_name:
+                if self._can_edit_layer(layer):
+                    visible = layer['visible']
+                    if not visible and self._placed_item_count() >= self._item_slot_limit():
+                        QMessageBox.information(
+                            self,
+                            self.tr("Item slots full"),
+                            self.tr("Withdraw a placed item to free a slot, or level up to unlock another slot."),
+                        )
+                        return
+                    layer['visible'] = not visible
+                    if not self._write_item_layer(layer):
+                        layer['visible'] = visible
+                    self.set_img()
+                return
+
         # Check if it's pet-required item
         if item_name == settings.required_item:
             reward_factor = settings.FACTOR_FEED_REQ
@@ -2281,6 +2583,9 @@ class PetWidget(QWidget):
                 self.fvlvl_changed_main_inve.emit(fv_lvl)
         self._update_fvlock()
         self.lvl_badge.set_level(fv_lvl)
+        editor = getattr(self, 'item_layout_editor', None)
+        if editor is not None:
+            editor.render()
         self.refresh_acts.emit()
         if notify and fv_lvl > previous_level:
             self.bubble_manager.trigger_bubble(bb_type="fv_lvlup")

@@ -1130,6 +1130,11 @@ class itemTabWidget(QWidget):
         self.changeButton()
 
     def changeButton(self, item_inuse=False):
+        if self.selected_cell is not None:
+            cell = self.cells_dict[self.selected_cell]
+            layer = getattr(settings, 'equipped_item_layers', {}).get(cell.item_name)
+            if layer is not None:
+                cell.item_inuse = item_inuse = layer['visible']
         if self.selected_cell is None:
             self.set_confirm.emit(0, 0)
             #self.button_confirm.setText(self.tr('使用'))
@@ -1896,6 +1901,9 @@ class ShopView(QWidget):
                 break
 
     def _updateAllItemUI(self):
+        for item in self.items_data:
+            if item not in self._Items and self.items_data[item]['cost'] != -1:
+                self._addItemCard(max(self.cards, default=-1) + 1, item)
         for idx, card in self.cards.items():
             card._update_UI()
 

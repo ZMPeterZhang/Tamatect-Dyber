@@ -6,6 +6,7 @@ import uuid
 import types
 import random
 import inspect
+from collections import deque
 from typing import List
 import pynput.mouse as mouse
 from datetime import datetime, timedelta
@@ -14,7 +15,7 @@ from datetime import datetime, timedelta
 from apscheduler.schedulers.qt import QtScheduler
 from apscheduler.triggers import interval, date, cron
 
-from PySide6.QtCore import Qt, QTimer, QObject, QPoint, QUrl, QEvent, QRectF, QRect, QSize
+from PySide6.QtCore import Qt, QTimer, QObject, QPoint, QUrl, QEvent, QRectF, QRect, QSize, QElapsedTimer
 from PySide6.QtGui import QImage, QPixmap, QIcon, QCursor,QPainter
 from PySide6.QtGui import QFont, QTransform, QAction
 
@@ -51,6 +52,66 @@ else:
 ACCESSORY_FOLLOW_DELAY_MS = 167
 
 basedir = settings.BASEDIR
+
+
+class ItemLayerFall(QLabel):
+    """Display equipped layers along the pet's recent fall path."""
+    settled = Signal()
+
+    def __init__(self, pet):
+        super().__init__(pet, Qt.Tool | Qt.FramelessWindowHint |
+                         Qt.WindowTransparentForInput | Qt.WindowDoesNotAcceptFocus |
+                         Qt.NoDropShadowWindowHint)
+        self.pet = pet
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_ShowWithoutActivating)
+        self.clock = QElapsedTimer()
+        self.path = deque()
+        self.landed_at = None
+        self.timer = QTimer(self)
+        self.timer.setTimerType(Qt.PreciseTimer)
+        self.timer.setInterval(20)
+        self.timer.timeout.connect(self.follow)
+
+    def start(self):
+        origin = self.pet.label.mapToGlobal(QPoint())
+        self.path.clear()
+        self.path.append((0, origin))
+        self.landed_at = None
+        self.setWindowFlag(Qt.WindowStaysOnTopHint, settings.on_top_hint)
+        self.move(origin)
+        self.clock.start()
+        self.timer.start()
+
+    def is_active(self):
+        return self.timer.isActive()
+
+    def set_frame(self, frame):
+        self.setFixedSize(frame.size())
+        self.setPixmap(frame)
+        if not self.isVisible():
+            self.show()
+            self.move(self.path[0][1])
+
+    def stop(self):
+        self.timer.stop()
+        self.hide()
+        self.path.clear()
+
+    def follow(self):
+        elapsed = self.clock.elapsed()
+        self.path.append((elapsed, self.pet.label.mapToGlobal(QPoint())))
+        cutoff = elapsed - ACCESSORY_FOLLOW_DELAY_MS
+        while len(self.path) > 1 and self.path[1][0] <= cutoff:
+            self.path.popleft()
+        self.move(self.path[0][1])
+
+        if settings.onfloor and self.landed_at is None:
+            self.landed_at = elapsed
+        if not self.pet.isVisible() or (self.landed_at is not None and self.landed_at <= cutoff):
+            self.stop()
+            self.settled.emit()
+
 
 ##############################
 #          组件模块

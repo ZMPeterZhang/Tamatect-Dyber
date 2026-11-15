@@ -1,0 +1,10 @@
+{
+  "name": "lamp",
+  "inventory_item": "lamp",
+  "offset_x": 57.0,
+  "offset_y": 174.0,
+  "scale": 1.0,
+  "visible": true,
+  "flipped": false,
+  "draw_order": 0
+}
