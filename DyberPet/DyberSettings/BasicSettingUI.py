@@ -185,7 +185,7 @@ class SettingInterface(ScrollArea):
             lang_choices,
             lang_choices,
             FIF.LANGUAGE,
-            self.tr('Language/语言'),
+            self.tr('Language'),
             self.tr('Set your preferred language for UI'),
             parent=self.PersonalGroup
         )
@@ -350,7 +350,7 @@ class SettingInterface(ScrollArea):
         """ show restart tooltip """
         InfoBar.warning(
             '',
-            self.tr('Configuration takes effect after restart\n此设置在重启后生效'),
+            self.tr('Changes take effect after restart.'),
             duration=3000,
             position=InfoBarPosition.BOTTOM,
             parent=self.window()

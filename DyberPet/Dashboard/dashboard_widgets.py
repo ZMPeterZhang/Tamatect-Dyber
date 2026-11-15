@@ -1175,7 +1175,12 @@ class itemTabWidget(QWidget):
         if len(self.items_data.item_dict[item_name_selected]['pet_limit']) != 0:
             pet_list = self.items_data.item_dict[item_name_selected]['pet_limit']
             if settings.petname not in pet_list:
-                self.item_note.emit('system', f"[{item_name_selected}] {self.tr('仅能在切换至')}' [{'、'.join(pet_list)}] {self.tr('后使用哦')}")
+                display_name = self.items_data.get_display_name(item_name_selected)
+                self.item_note.emit(
+                    'system',
+                    f"[{display_name}] can only be used while one of these pets is active: "
+                    f"{', '.join(pet_list)}."
+                )
                 return
 
         # Check item type
@@ -1205,7 +1210,8 @@ class itemTabWidget(QWidget):
 
             # signal to act feed animation
             self.use_item_inven.emit(item_name_selected)
-            self.item_note.emit(item_name_selected, '[%s] -1'%item_name_selected)
+            display_name = self.items_data.get_display_name(item_name_selected)
+            self.item_note.emit(item_name_selected, f'[{display_name}] -1')
 
             # change button
             #self.selected_cell = None
@@ -1277,11 +1283,12 @@ class itemTabWidget(QWidget):
             self.check_num_cells()
             self.adjustSize()
 
+        display_name = self.items_data.get_display_name(item_name)
         if n_items > 0:
-            self.item_note.emit(item_name, '[%s] +%s'%(item_name, n_items))
+            self.item_note.emit(item_name, f'[{display_name}] +{n_items}')
             self.item_drop.emit(item_name)
         else:
-            self.item_note.emit(item_name, '[%s] %s'%(item_name, n_items))
+            self.item_note.emit(item_name, f'[{display_name}] {n_items}')
         # change pet_data
         settings.pet_data.change_item(item_name, item_change=n_items, item_index=item_index)
         self.item_num_changed.emit(item_name)
@@ -1296,7 +1303,8 @@ class itemTabWidget(QWidget):
             self.cells_dict[0].consumeItem()
             # signal to act feed animation
             self.use_item_inven.emit(item_name)
-            self.item_note.emit(item_name, '[%s] -1'%item_name)
+            display_name = self.items_data.get_display_name(item_name)
+            self.item_note.emit(item_name, f'[{display_name}] -1')
 
     def count(self):
         return len(self.cells_dict)
@@ -1522,6 +1530,7 @@ class ShopItemWidget(SimpleCardWidget):
         self.item_config = item_config
 
         self.item_name = item_config['name']
+        self.display_name = item_config.get('display_name', self.item_name)
         self.image = item_config['image']
         self.description = self.item_config['hint']
         self.cost = self.item_config['cost']
@@ -1619,9 +1628,9 @@ class ShopItemWidget(SimpleCardWidget):
 
         # Item name
         if self.unlocked:
-            title = self.item_name
+            title = self.display_name
         else:
-            title = MaskPhrase(self.item_name)
+            title = MaskPhrase(self.display_name)
         self.nameLabel = CaptionLabel(title)
         setFont(self.nameLabel, 14, QFont.DemiBold)
         self.nameLabel.adjustSize()
@@ -1731,9 +1740,9 @@ class ShopItemWidget(SimpleCardWidget):
         
             # Item name
             if self.unlocked:
-                title = self.item_name
+                title = self.display_name
             else:
-                title = MaskPhrase(self.item_name)
+                title = MaskPhrase(self.display_name)
             self.nameLabel.setText(title)
             self.nameLabel.adjustSize()
 
@@ -2067,9 +2076,11 @@ class ShopMessageBox(MessageBoxBase):
         self.option = option
         self.itemNum = 0
         if self.option == 'buy':
-            self.titleLabel = SubtitleLabel(self.tr('Buy') + f' [{item_name}]', self)
+            display_name = settings.items_data.get_display_name(item_name)
+            self.titleLabel = SubtitleLabel(self.tr('Buy') + f' [{display_name}]', self)
         elif self.option == 'sell':
-            self.titleLabel = SubtitleLabel(self.tr('Sell') + f' [{item_name}]', self)
+            display_name = settings.items_data.get_display_name(item_name)
+            self.titleLabel = SubtitleLabel(self.tr('Sell') + f' [{display_name}]', self)
         self.numSpinBox = SpinBox(self)
         self.numSpinBox.setMinimum(0)
         self.numSpinBox.setMaximum(maxNum)

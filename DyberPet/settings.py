@@ -36,6 +36,7 @@ else:
 DEFAULT_THEME_COL = "#009faa"
 DEFAULT_PET = "Tamatect"
 DEFAULT_SCALE = 0.5
+DEFAULT_LANGUAGE = "en_US"
 
 
 def get_progression_level():
@@ -88,6 +89,11 @@ LINK_PERMIT = {"BiliBili":"https://space.bilibili.com/",
                "爱发电":"https://afdian.net/a/",
                "TikTok":"https://www.tiktok.com/",
                "YouTube":"https://www.youtube.com/"}
+LINK_DISPLAY_NAMES = {
+    "微博": "Weibo",
+    "抖音": "Douyin",
+    "爱发电": "Afdian",
+}
 
 ITEM_BGC = {'consumable': '#EFEBDF',
             'collection': '#e1eaf4',
@@ -257,7 +263,7 @@ def init_settings():
         gravity = data_params['gravity']
         #tunable_scale = data_params['tunable_scale']
         volume = data_params['volume']
-        language_code = data_params.get('language_code', QtCore.QLocale().name())
+        language_code = data_params.get('language_code', DEFAULT_LANGUAGE)
         on_top_hint = data_params.get('on_top_hint', True)
         default_pet = migrate_role_name(
             data_params.get(
@@ -342,7 +348,7 @@ def init_settings():
         fixdragspeedx, fixdragspeedy = 1.0, 1.0
         gravity = 0.1
         volume = 0.5
-        language_code = QtCore.QLocale().name()
+        language_code = DEFAULT_LANGUAGE
         on_top_hint = True
         default_pet = DEFAULT_PET if DEFAULT_PET in pets else pets[0]
         defaultAct = {}

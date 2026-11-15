@@ -302,7 +302,7 @@ HangLabelStyle = """
 QLabel {
     background: rgba(255, 255, 255, 0);
     font-size: 16px;
-    font-family: "黑体";
+    font-family: "Arial";
     border: 0px
 }
 """

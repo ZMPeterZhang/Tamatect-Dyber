@@ -1421,6 +1421,12 @@ class ItemData:
             v = list(set(v))
             self.reward_dict[k] = v
 
+    def get_display_name(self, item_name):
+        item_config = self.item_dict.get(item_name)
+        if item_config is None:
+            return item_name
+        return item_config.get('display_name', item_name)
+
     def init_item(self, conf_param, itemName, itemFolder, modName):
         """
         物品
@@ -1434,6 +1440,7 @@ class ItemData:
         :param description 物品描述
         """
         name = itemName #conf_param['name']
+        display_name = conf_param.get('display_name', name)
         image = _load_item_img(os.path.join(itemFolder, conf_param['image']))
         effect_HP = int(conf_param.get('effect_HP', 0))
         
@@ -1460,11 +1467,11 @@ class ItemData:
         buff = conf_param.get('buff', {})
 
         if effect_FV==0 and effect_HP==0:
-            hint = '{} {}\n\n{}\n'.format(name,
+            hint = '{} {}\n\n{}\n'.format(display_name,
                                         ' '.join(['⭐']*fv_lock), 
                                         description)
         else:
-            hint = f"{name} {' '.join(['⭐']*fv_lock)}\n\n{description}\n____________________________________\n\n{self.HUNGERSTR}: {effect_HP_str}\n{self.FAVORSTR}: {effect_FV_str}\n"
+            hint = f"{display_name} {' '.join(['⭐']*fv_lock)}\n\n{description}\n____________________________________\n\n{self.HUNGERSTR}: {effect_HP_str}\n{self.FAVORSTR}: {effect_FV_str}\n"
         
         buff_description = buff.get('description', '')
         if buff_description:
@@ -1487,6 +1494,7 @@ class ItemData:
         cost = conf_param.get('cost', 50*(fv_lock+1))
 
         return {'name': name,
+                'display_name': display_name,
                 'image': image,
                 'effect_HP': effect_HP,
                 'effect_FV': effect_FV,
@@ -1542,6 +1550,7 @@ def init_item(conf_param, itemName, itemFolder, modName, HUNGERSTR, FAVORSTR):
     """
 
     name = itemName #conf_param['name']
+    display_name = conf_param.get('display_name', name)
     image = _load_item_img(os.path.join(itemFolder, conf_param['image']))
     effect_HP = int(conf_param.get('effect_HP', 0))
     
@@ -1592,6 +1601,7 @@ def init_item(conf_param, itemName, itemFolder, modName, HUNGERSTR, FAVORSTR):
         
 
     return {'name': name,
+            'display_name': display_name,
             'image': image,
             'effect_HP': effect_HP,
             'effect_FV': effect_FV,

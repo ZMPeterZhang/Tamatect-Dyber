@@ -1294,7 +1294,7 @@ class CharCardWidget(SimpleCardWidget):
                                 icon=QIcon(iconPath)) #os.path.join(basedir, 'res/icons', link+'.svg')))
                 linkButton.setFixedSize(25,25)
                 linkButton.setIconSize(QSize(18,18))
-                linkButton.setToolTip(link)
+                linkButton.setToolTip(settings.LINK_DISPLAY_NAMES.get(link, link))
                 self.hBoxLayoutAuthor.addWidget(linkButton, 0, Qt.AlignRight | Qt.AlignVCenter)
 
         self.vBoxLayout.addWidget(self.flipView, 0, Qt.AlignCenter)
@@ -1685,7 +1685,7 @@ class ItemCardWidget(SimpleCardWidget):
                                 icon=QIcon(iconPath)) #os.path.join(basedir, 'res/icons', link+'.svg')))
                 linkButton.setFixedSize(25,25)
                 linkButton.setIconSize(QSize(18,18))
-                linkButton.setToolTip(link)
+                linkButton.setToolTip(settings.LINK_DISPLAY_NAMES.get(link, link))
                 self.hBoxLayoutAuthor.addWidget(linkButton, 0, Qt.AlignRight | Qt.AlignVCenter)
 
         self.vBoxLayout.addWidget(self.scrollView, 0, Qt.AlignCenter)

@@ -1,12 +1,14 @@
-<h1 align="center">
-  <img src="docs/app_icon.png" alt="DyberPet app icon" width="64" valign="middle"> 呆啵宠物  DyberPet<br>
-  <sup><sub>让喜欢的角色住进桌面，模组自由，AI 相伴。</sub></sup>
-</h1>
+<p align="center">
+  <img src="docs/tamatect-flyer.jpg" alt="Tamatect - Your Desktop Companion" width="720">
+</p>
+
+<h1 align="center">Tamatect - Your Desktop Companion</h1>
+<p align="center">A featured Tamatect experience in this customized DyberPet desktop-pet project.</p>
 
 <p align="center">
-  <b>🐾 桌宠系统</b>：动画、交互、养成、任务、商店与迷你宠物，让角色真正住进桌面。<br>
-  <b>✨ AI 助手</b>：桌宠系统接入大模型，陪伴聊天、管理待办、协助日常。<br>
-  <b>🧩 MOD 生态</b>：角色、道具、音效、迷你宠物均可自由扩展与创作。
+  <b>AEC-aware work states</b>: Tamatect responds to Rhino, Revit, and Rhino.Inside activity.<br>
+  <b>Accessories and food</b>: equip customizable items and shop for Tamatect's workday favorites.<br>
+  <b>Desktop companion care</b>: animations, health, progression, and physics-driven falling items.
 </p>
 
 <p align="center">

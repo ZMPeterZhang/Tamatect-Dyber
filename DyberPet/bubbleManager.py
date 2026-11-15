@@ -160,7 +160,8 @@ class BubbleManager(QObject):
         bubble_dict['icon'] = selected_item
         bubble_dict['item'] = selected_item
         bubble_dict['message'] = self.tr(bubble_dict['message'])
-        bubble_dict['message'] = bubble_dict['message'].replace("ITEMNAME", f"[{selected_item}]")
+        display_name = settings.items_data.get_display_name(selected_item)
+        bubble_dict['message'] = bubble_dict['message'].replace("ITEMNAME", f"[{display_name}]")
 
         return bubble_dict
     

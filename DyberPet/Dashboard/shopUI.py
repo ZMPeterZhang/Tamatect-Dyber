@@ -283,7 +283,8 @@ Please position your cursor over the item image to see details.""")
 
         # Except food, only one item is allowed for other type of items
         if item_conf['item_type'] != 'consumable' and settings.pet_data.items.get(item_name, (None,0))[1] > 0:
-            content = self.tr('One Char can have only one ') + f"[{item_name}]"
+            display_name = self.items_data.get_display_name(item_name)
+            content = self.tr('One Char can have only one ') + f"[{display_name}]"
             self.__showSystemNote(content, 1)
             return
 
