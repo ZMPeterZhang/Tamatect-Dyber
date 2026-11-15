@@ -27,7 +27,7 @@ from .custom_roundmenu import RoundMenu
 from DyberPet.conf import *
 from DyberPet.utils import *
 from DyberPet.modules import *
-from DyberPet.Accessory import MouseMoveManager
+from DyberPet.Accessory import ItemLayerFall, MouseMoveManager
 from DyberPet.custom_widgets import RoundBarBase, LevelBadge
 from DyberPet.bubbleManager import BubbleManager
 from DyberPet.aec import (
@@ -416,6 +416,7 @@ class PetWidget(QWidget):
         #self.pet_conf = PetConfig()
 
         self.image = None
+        self.item_layer_fall = None
         self.tray = None
 
         # 鼠标拖拽初始属性
@@ -579,6 +580,9 @@ class PetWidget(QWidget):
             # 左键绑定拖拽
             self.is_follow_mouse = True
             self.mouse_drag_pos = event.globalPos() - self.pos()
+            if self.item_layer_fall is not None and self.item_layer_fall.is_active():
+                self.item_layer_fall.stop()
+                self._render_pet_frame()
             
             if settings.onfloor == 0:
             # Left press activates Drag interaction
@@ -695,6 +699,7 @@ class PetWidget(QWidget):
                         settings.fall_right = True
                     else:
                         settings.fall_right = False
+                    self._start_item_layer_fall()
 
                 else:
                     settings.draging=0
@@ -1370,6 +1375,8 @@ class PetWidget(QWidget):
         :param pet_name: 宠物名称
         :return:
         """
+        if self.item_layer_fall is not None:
+            self.item_layer_fall.stop()
         self.aec_process_timer.stop()
         self._stop_aec_sleep()
         self.aec_working = False
@@ -1594,18 +1601,31 @@ class PetWidget(QWidget):
         height_tmp = int(settings.current_img.height()*settings.tunable_scale)
 
         # HighDPI-compatible scaling solution
-        # self.label.setScaledContents(True)
         self.label.setFixedSize(width_tmp, height_tmp)
+        self._render_pet_frame()
+
+    def _start_item_layer_fall(self):
+        if not any(layer['visible'] and self._can_edit_layer(layer)
+                   for layer in self.item_layers.values()):
+            return
+        if self.item_layer_fall is None:
+            self.item_layer_fall = ItemLayerFall(self)
+            self.item_layer_fall.settled.connect(self._render_pet_frame)
+        self.item_layer_fall.start()
+        self._render_pet_frame()
+
+    def _render_pet_frame(self):
         image = settings.current_img
-        image = self._compose_item_layers(image, getattr(self, 'item_layers', {}),
-                                          getattr(settings, 'current_img_mirrored', False),
-                                          self.label.size())
+        layers = self.item_layers
+        mirrored = getattr(settings, 'current_img_mirrored', False)
+        if self.item_layer_fall is not None and self.item_layer_fall.is_active():
+            image = self._compose_item_layers(image, {}, target_size=self.label.size())
+            overlay = QPixmap(image.size())
+            overlay.fill(Qt.transparent)
+            self.item_layer_fall.set_frame(self._compose_item_layers(overlay, layers, mirrored))
+        else:
+            image = self._compose_item_layers(image, layers, mirrored, self.label.size())
         self.label.setPixmap(image)
-        # previous scaling soluton
-        #self.label.resize(width_tmp, height_tmp)
-        #self.label.setPixmap(QPixmap.fromImage(settings.current_img.scaled(width_tmp, height_tmp,
-        #                                                                 aspectMode=Qt.KeepAspectRatio,
-        #                                                                 mode=Qt.SmoothTransformation)))
         self.image = image
 
     def _compose_item_layers(self, image, layers, mirrored=False, target_size=None):

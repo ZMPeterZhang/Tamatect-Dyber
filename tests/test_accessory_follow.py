@@ -1,8 +1,12 @@
 import unittest
+from collections import deque
+from types import SimpleNamespace
 from unittest import mock
 
+from PySide6.QtCore import QPoint
+
 from DyberPet import settings
-from DyberPet.Accessory import QAccessory
+from DyberPet.Accessory import ACCESSORY_FOLLOW_DELAY_MS, ItemLayerFall, QAccessory
 
 
 class FakePoint:
@@ -46,6 +50,39 @@ class FakeAccessory:
 
 
 class AccessoryFollowTests(unittest.TestCase):
+    def test_item_layers_follow_delayed_positions_and_settle_at_landing(self):
+        released = QPoint(100, 60)
+        halfway = QPoint(120, 150)
+        landed = QPoint(150, 260)
+        label = SimpleNamespace(mapToGlobal=mock.Mock(return_value=halfway))
+        overlay = SimpleNamespace(
+            pet=SimpleNamespace(label=label, isVisible=lambda: True),
+            clock=SimpleNamespace(elapsed=mock.Mock(return_value=100)),
+            path=deque([(0, released)]),
+            landed_at=None,
+            move=mock.Mock(),
+            stop=mock.Mock(),
+            settled=mock.Mock(),
+        )
+
+        with mock.patch.object(settings, 'onfloor', 0, create=True):
+            ItemLayerFall.follow(overlay)
+            overlay.move.assert_called_with(released)
+
+            landed_at = 100 + ACCESSORY_FOLLOW_DELAY_MS
+            settings.onfloor = 1
+            label.mapToGlobal.return_value = landed
+            overlay.clock.elapsed.return_value = landed_at
+            ItemLayerFall.follow(overlay)
+            overlay.move.assert_called_with(halfway)
+            overlay.stop.assert_not_called()
+
+            overlay.clock.elapsed.return_value = landed_at + ACCESSORY_FOLLOW_DELAY_MS
+            ItemLayerFall.follow(overlay)
+            overlay.move.assert_called_with(landed)
+            overlay.stop.assert_called_once()
+            overlay.settled.emit.assert_called_once()
+
     def test_accessory_catches_up_after_main_lands(self):
         with mock.patch.multiple(
             settings,
