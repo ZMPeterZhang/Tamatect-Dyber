@@ -69,15 +69,32 @@ def resolve_work_profiles(work_mode, detected_apps, focus_working=False):
 
 def get_work_badge_label(
         work_mode, display_work_profile, focus_working, detected_apps):
+    display_text = {
+        'hard_rhino': 'Working hard in Rhino',
+        'hard_revit': 'Working hard in Revit',
+        'with_rhino': 'Working with you in Rhino',
+        'with_revit': 'Working with you in Revit',
+        'rhino_inside': 'working with you on Rhino.Inside',
+    }.get(display_work_profile)
+    if display_text:
+        return display_text
     if work_mode == 'auto' and focus_working and not detected_apps:
         return 'Focus'
-    if display_work_profile == 'revit':
-        return 'Revit'
-    if display_work_profile == 'rhino':
-        return 'Rhino'
-    if focus_working:
-        return 'Focus'
     return None
+
+
+def get_work_display_state(work_mode, detected_apps, focus_working=False):
+    profiles, detected = resolve_work_profiles(
+        work_mode, detected_apps, focus_working)
+    if {'rhino', 'revit'}.issubset(detected_apps):
+        return 'rhino_inside'
+    if work_mode == 'auto' and not detected:
+        return None
+    if not profiles:
+        return None
+
+    activity = 'with' if focus_working else 'hard'
+    return f'{activity}_{profiles[0]}'
 
 
 class AECProgression:

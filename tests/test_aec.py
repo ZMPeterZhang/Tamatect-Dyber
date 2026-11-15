@@ -5,6 +5,7 @@ from DyberPet.aec import (
     AECEventCatalog,
     AECProgression,
     get_work_badge_label,
+    get_work_display_state,
     migrate_aec_progression,
     parse_running_work_apps,
     resolve_work_profiles,
@@ -144,16 +145,53 @@ class AECProgressionTests(unittest.TestCase):
             'Focus',
         )
         self.assertEqual(
-            get_work_badge_label('auto', 'revit', True, frozenset(('revit',))),
-            'Revit',
+            get_work_badge_label(
+                'auto', 'with_revit', True, frozenset(('revit',))),
+            'Working with you in Revit',
         )
         self.assertEqual(
-            get_work_badge_label('rhino', 'rhino', True, frozenset()),
-            'Rhino',
+            get_work_badge_label(
+                'auto', 'hard_revit', False, frozenset(('revit',))),
+            'Working hard in Revit',
+        )
+        self.assertEqual(
+            get_work_badge_label(
+                'auto', 'with_rhino', True, frozenset(('rhino',))),
+            'Working with you in Rhino',
+        )
+        self.assertEqual(
+            get_work_badge_label('rhino', 'hard_rhino', False, frozenset()),
+            'Working hard in Rhino',
+        )
+        self.assertEqual(
+            get_work_badge_label(
+                'auto', 'rhino_inside', False, frozenset(('rhino', 'revit'))),
+            'working with you on Rhino.Inside',
         )
         self.assertIsNone(
             get_work_badge_label('auto', None, False, frozenset()),
         )
+
+    def test_work_display_state_matches_detected_apps_and_focus_state(self):
+        cases = [
+            ('auto', frozenset(('rhino',)), False, 'hard_rhino'),
+            ('auto', frozenset(('rhino',)), True, 'with_rhino'),
+            ('auto', frozenset(('revit',)), False, 'hard_revit'),
+            ('auto', frozenset(('revit',)), True, 'with_revit'),
+            ('auto', frozenset(('rhino', 'revit')), False, 'rhino_inside'),
+            ('auto', frozenset(), True, None),
+            ('revit', frozenset(), False, 'hard_revit'),
+        ]
+        for work_mode, detected_apps, focus_working, expected in cases:
+            with self.subTest(
+                    work_mode=work_mode,
+                    detected_apps=detected_apps,
+                    focus_working=focus_working):
+                self.assertEqual(
+                    get_work_display_state(
+                        work_mode, detected_apps, focus_working),
+                    expected,
+                )
 
     def test_sleep_recovers_health_once_per_five_minutes(self):
         progression = AECProgression(FakePetData())

@@ -37,6 +37,7 @@ from DyberPet.aec import (
     WORK_MINUTE_SECONDS,
     WORK_POLL_INTERVAL_MS,
     get_work_badge_label,
+    get_work_display_state,
     get_running_work_apps,
     resolve_work_profiles,
 )
@@ -1914,9 +1915,11 @@ class PetWidget(QWidget):
         working = bool(profiles) or self.aec_focus_working
         if working and self.aec_sleeping:
             self._stop_aec_sleep()
-        self.aec_display_work_profile = (
-            'revit' if 'revit' in profiles else
-            'rhino' if profiles else None)
+        self.aec_display_work_profile = get_work_display_state(
+            self.aec_work_mode,
+            self.aec_detected_apps,
+            self.aec_focus_working,
+        )
         if working != self.aec_working:
             self.aec_working = working
             self._set_aec_animation_state('work' if working else 'idle')

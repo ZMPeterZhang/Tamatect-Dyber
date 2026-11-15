@@ -1,8 +1,8 @@
 # Tamatect gameplay
 
 Select the `Tamatect` role to enable the AEC loop. It reuses the supplied
-numbered PNG frames and the existing focus and Pomodoro timers. Its 300x300
-frames are rendered at native size with role scale 1.0.
+numbered PNG frames and the existing focus and Pomodoro timers. The default
+startup scale is 0.5 and remains user-adjustable.
 Settings, pet saves, and custom animation data from the former `TamatectAEC`
 role are migrated to `Tamatect`.
 
@@ -17,6 +17,10 @@ role are migrated to `Tamatect`.
   focus-only session). Work uses the `focus` frames, food uses the
   `feed_2`/`eating_ordinary` frames, and sleep uses the `sleep`/`sleeping`
   frame.
+- The work badge stays visible with state-specific text: “Working hard in
+  Rhino/Revit” for detected application work, “Working with you in Rhino/Revit”
+  while a focus session is active alongside either application, and “working
+  with you on Rhino.Inside” when both applications are detected.
 - AEC EXP and Level reuse favorability and its level. Existing AEC EXP/Level
   save values are migrated to those fields; non-AEC roles retain their current
   favorability behavior.
