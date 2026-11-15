@@ -4,6 +4,7 @@ from datetime import date, timedelta
 from DyberPet.aec import (
     AECEventCatalog,
     AECProgression,
+    get_work_badge_label,
     migrate_aec_progression,
     parse_running_work_apps,
     resolve_work_profiles,
@@ -135,6 +136,23 @@ class AECProgressionTests(unittest.TestCase):
         self.assertEqual(
             resolve_work_profiles('auto', frozenset(), focus_working=True),
             (('rhino',), False),
+        )
+
+    def test_work_badge_distinguishes_focus_and_work_profiles(self):
+        self.assertEqual(
+            get_work_badge_label('auto', 'rhino', True, frozenset()),
+            'Focus',
+        )
+        self.assertEqual(
+            get_work_badge_label('auto', 'revit', True, frozenset(('revit',))),
+            'Revit',
+        )
+        self.assertEqual(
+            get_work_badge_label('rhino', 'rhino', True, frozenset()),
+            'Rhino',
+        )
+        self.assertIsNone(
+            get_work_badge_label('auto', None, False, frozenset()),
         )
 
     def test_sleep_recovers_health_once_per_five_minutes(self):

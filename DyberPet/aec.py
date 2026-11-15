@@ -67,6 +67,19 @@ def resolve_work_profiles(work_mode, detected_apps, focus_working=False):
     return (), False
 
 
+def get_work_badge_label(
+        work_mode, display_work_profile, focus_working, detected_apps):
+    if work_mode == 'auto' and focus_working and not detected_apps:
+        return 'Focus'
+    if display_work_profile == 'revit':
+        return 'Revit'
+    if display_work_profile == 'rhino':
+        return 'Rhino'
+    if focus_working:
+        return 'Focus'
+    return None
+
+
 class AECProgression:
     def __init__(self, pet_data):
         self.pet_data = pet_data

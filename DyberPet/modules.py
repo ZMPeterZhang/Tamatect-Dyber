@@ -786,7 +786,11 @@ class Interaction_worker(QObject):
             self.sig_move_inter.emit(plus_x, plus_y)
 
     def use_item(self, item):
-        self.start_interact('animat', 'default')
+        pet_conf = getattr(self, 'pet_conf', None)
+        feed_action = getattr(pet_conf, 'feed_action', None)
+        if feed_action not in getattr(pet_conf, 'act_name', []):
+            feed_action = 'default'
+        self.start_interact('animat', feed_action)
 
         '''
         self.interact = 'animat' #None

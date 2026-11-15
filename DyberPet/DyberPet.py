@@ -35,6 +35,7 @@ from DyberPet.aec import (
     AECProgression,
     WORK_MINUTE_SECONDS,
     WORK_POLL_INTERVAL_MS,
+    get_work_badge_label,
     get_running_work_apps,
     resolve_work_profiles,
 )
@@ -700,6 +701,22 @@ class PetWidget(QWidget):
         self.label.installEventFilter(self)
         #self.label.setStyleSheet("border : 2px solid blue")
 
+        self.aec_work_badge = QLabel(self)
+        self.aec_work_badge.setAlignment(Qt.AlignCenter)
+        self.aec_work_badge.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self.aec_work_badge.setStyleSheet(
+            'QLabel {'
+            'background-color: rgba(32, 38, 45, 220);'
+            'color: white;'
+            'border: 1px solid rgba(255, 255, 255, 190);'
+            'border-radius: 10px;'
+            'padding: 3px 10px;'
+            'font-size: 12px;'
+            'font-weight: 600;'
+            '}'
+        )
+        self.aec_work_badge.hide()
+
         # system animations
         self.sys_src = _load_all_pic('sys')
         self.sys_conf = PetConfig.init_sys(self.sys_src) 
@@ -1178,6 +1195,7 @@ class PetWidget(QWidget):
         self._set_menu(self.pets)
         self._set_Statusmenu()
         self._set_tray()
+        self._sync_aec_work_badge()
 
         # restart animation and interaction
         self.runAnimation()
@@ -1598,6 +1616,29 @@ class PetWidget(QWidget):
         if working != self.aec_working:
             self.aec_working = working
             self._set_aec_animation_state('work' if working else 'idle')
+        self._sync_aec_work_badge()
+
+    def _sync_aec_work_badge(self):
+        if not self.pet_conf.aec_mode:
+            self.aec_work_badge.hide()
+            return
+
+        label = get_work_badge_label(
+            self.aec_work_mode,
+            self.aec_display_work_profile,
+            self.aec_focus_working,
+            self.aec_detected_apps,
+        )
+        if label is None:
+            self.aec_work_badge.hide()
+            return
+
+        self.aec_work_badge.setText(self.tr(label))
+        self.aec_work_badge.adjustSize()
+        self.aec_work_badge.move(
+            (self.width() - self.aec_work_badge.width()) // 2, 2)
+        self.aec_work_badge.show()
+        self.aec_work_badge.raise_()
 
     def _poll_aec_work(self):
         if not self.aec_progression:

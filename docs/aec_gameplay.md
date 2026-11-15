@@ -1,9 +1,8 @@
 # Tamatect gameplay
 
 Select the `Tamatect` role to enable the AEC loop. It reuses the supplied
-numbered PNG idle frames and the existing focus and Pomodoro timers.
-Its 543x605 source frames are rendered at 15% scale, with matching role
-dimensions so the pet label is not clipped by the desktop window.
+numbered PNG frames and the existing focus and Pomodoro timers. Its 300x300
+frames are rendered at native size with role scale 1.0.
 Settings, pet saves, and custom animation data from the former `TamatectAEC`
 role are migrated to `Tamatect`.
 
@@ -14,6 +13,10 @@ role are migrated to `Tamatect`.
   menu to restore 1 health every five minutes; waking or starting work cancels
   sleep.
 - Food continues to restore health through the existing item effects.
+- While working, a badge above the pet shows Rhino, Revit, or Focus (for a
+  focus-only session). Work uses the `focus` frames, food uses the
+  `feed_2`/`eating_ordinary` frames, and sleep uses the `sleep`/`sleeping`
+  frame.
 - AEC EXP and Level reuse favorability and its level. Existing AEC EXP/Level
   save values are migrated to those fields; non-AEC roles retain their current
   favorability behavior.

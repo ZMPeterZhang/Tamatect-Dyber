@@ -13,10 +13,12 @@
   "drag": "drag",
   "fall": "fall",
   "on_floor": "land",
+  "focus": "focus",
+  "feed_action": "Eating",
   "patpat": "idle_click",
   "aec_actions": {
-    "work": "default",
-    "sleep": "default"
+    "work": "focus",
+    "sleep": "sleep"
   },
   "accessory_act": [
     {
@@ -40,6 +42,12 @@
       "act_list": ["default"],
       "act_prob": 1.0,
       "act_type": [2, 0]
+    },
+    {
+      "name": "Eating",
+      "act_list": ["feed_2"],
+      "act_prob": 0.0,
+      "act_type": [0, 0]
     }
   ]
 }

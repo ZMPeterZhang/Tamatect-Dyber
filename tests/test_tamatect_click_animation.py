@@ -79,22 +79,60 @@ class TamatectClickAnimationTests(unittest.TestCase):
             for file_name in os.listdir(action_dir)
             if file_name.endswith('.png')
         }
+        pic_names = {name: name for name in pic_dict}
 
-        for action_name in ('default', 'idle_click', 'drag', 'fall', 'land'):
+        for action_name in (
+                'default', 'idle_click', 'focus', 'feed_2', 'sleep',
+                'drag', 'fall', 'land'):
             with self.subTest(action=action_name):
                 action = Act.init_act(
                     act_conf[action_name], pic_dict, 1.0, 'Tamatect')
-                self.assertEqual((action.images[0].width(),
-                                  action.images[0].height()), (300, 300))
+                for frame in action.images:
+                    self.assertEqual(
+                        (frame.width(), frame.height()), (300, 300))
 
+        self.assertEqual(pet_conf['focus'], 'focus')
+        self.assertEqual(pet_conf['feed_action'], 'Eating')
+        feed_group = next(
+            action for action in pet_conf['random_act']
+            if action['name'] == pet_conf['feed_action'])
+        self.assertEqual(feed_group['act_list'], ['feed_2'])
         self.assertEqual(
             pet_conf['aec_actions'],
-            {'work': 'default', 'sleep': 'default'},
+            {'work': 'focus', 'sleep': 'sleep'},
+        )
+        self.assertEqual(
+            Act.init_act(act_conf['focus'], pic_names, 1.0, 'Tamatect').images,
+            ['focus_1', 'focus_2', 'focus_3', 'focus_4'],
+        )
+        self.assertEqual(
+            Act.init_act(act_conf['feed_2'], pic_names, 1.0, 'Tamatect').images,
+            [
+                'eating_ordinary_1', 'eating_ordinary_2',
+                'eating_ordinary_3', 'eating_ordinary_4',
+            ],
+        )
+        self.assertEqual(
+            Act.init_act(act_conf['sleep'], pic_names, 1.0, 'Tamatect').images,
+            ['sleeping_0'],
         )
         self.assertEqual(event_conf['events'][0]['animation'], 'Idle')
-        for action_name in ('feed_1', 'feed_2', 'feed_3', 'work', 'sleep', 'bim_crash'):
+        for action_name in ('feed_1', 'feed_3', 'work', 'bim_crash'):
             self.assertNotIn(action_name, act_conf)
         self.assertIn('aec_hard_hat', act_conf)
+
+    def test_food_use_uses_configured_feed_animation(self):
+        worker = SimpleNamespace(
+            pet_conf=SimpleNamespace(
+                feed_action='Eating',
+                act_name=['Eating'],
+            ),
+            start_interact=mock.Mock(),
+        )
+
+        Interaction_worker.use_item(worker, 'coffee')
+
+        worker.start_interact.assert_called_once_with('animat', 'Eating')
 
     def test_food_use_falls_back_to_default_animation(self):
         worker = SimpleNamespace(start_interact=mock.Mock())

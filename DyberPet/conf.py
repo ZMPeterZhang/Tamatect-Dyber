@@ -75,6 +75,7 @@ class PetConfig:
         self.fall = None
         self.on_floor = None
         self.focus = None
+        self.feed_action = None
         self.patpat = None
         self.aec_actions = {}
         #self.subpet = []
@@ -134,6 +135,7 @@ class PetConfig:
             o.prefall = act_dict[conf_params.get('prefall','fall')]
             o.on_floor = act_dict[conf_params.get('on_floor', 'default')]
             o.focus = act_dict[conf_params['focus']] if 'focus' in conf_params.keys() else None
+            o.feed_action = conf_params.get('feed_action')
             o.aec_actions = {
                 state: act_dict[action]
                 for state, action in conf_params.get('aec_actions', {}).items()
