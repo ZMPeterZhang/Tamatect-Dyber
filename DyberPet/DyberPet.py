@@ -7,6 +7,7 @@ import math
 import types
 import random
 import inspect
+import subprocess
 import webbrowser
 from typing import List
 from pathlib import Path
@@ -29,7 +30,15 @@ from DyberPet.modules import *
 from DyberPet.Accessory import MouseMoveManager
 from DyberPet.custom_widgets import RoundBarBase, LevelBadge
 from DyberPet.bubbleManager import BubbleManager
-from DyberPet.aec import AECEventCatalog, AECProgression
+from DyberPet.aec import (
+    AECEventCatalog,
+    AECProgression,
+    WORK_MINUTE_SECONDS,
+    WORK_POLL_INTERVAL_MS,
+    get_work_badge_label,
+    get_running_work_apps,
+    resolve_work_profiles,
+)
 
 # initialize settings
 import DyberPet.settings as settings
@@ -49,6 +58,7 @@ vf.close()
 status_margin = int(3)
 statbar_h = int(20)
 icons_wh = 20
+GROUND_DETECTION_OFFSET = 15
 
 # system config
 sys_hp_tiers = settings.HP_TIERS 
@@ -379,6 +389,7 @@ class PetWidget(QWidget):
     compensate_rewards = Signal(name="compensate_rewards")
     refresh_bag = Signal(name="refresh_bag")
     addCoins = Signal(int, name='addCoins')
+    aec_add_coins = Signal(int, str, bool, name='aec_add_coins')
     autofeed = Signal(name='autofeed')
 
     stopAllThread = Signal(name='stopAllThread')
@@ -435,9 +446,19 @@ class PetWidget(QWidget):
         self.aec_event_handlers = {}
         self.aec_event_player = None
         self.aec_event_audio_output = None
+        self.aec_work_mode = 'auto'
+        self.aec_work_mode_actions = {}
+        self.aec_detected_apps = frozenset()
+        self.aec_focus_working = False
+        self.aec_work_elapsed = 0.0
+        self.aec_last_poll = None
+        self.aec_display_work_profile = None
         self.aec_sleep_timer = QTimer(self)
         self.aec_sleep_timer.setInterval(60000)
         self.aec_sleep_timer.timeout.connect(self._aec_sleep_tick)
+        self.aec_process_timer = QTimer(self)
+        self.aec_process_timer.setInterval(WORK_POLL_INTERVAL_MS)
+        self.aec_process_timer.timeout.connect(self._poll_aec_work)
         self.init_conf(self.curr_pet_name) # if curr_pet_name else self.pets[0])
 
         #self._set_menu(pets)
@@ -679,6 +700,7 @@ class PetWidget(QWidget):
                     settings.draging=0
                     self._move_customized(0,0)
                     settings.current_img = self.pet_conf.default.images[0]
+                    settings.current_img_mirrored = False
                     self.set_img()
                     self.workers['Animation'].resume()
             self.mouse_moving = False
@@ -735,6 +757,22 @@ class PetWidget(QWidget):
         self.label.setAlignment(Qt.AlignBottom | Qt.AlignHCenter)
         self.label.installEventFilter(self)
         #self.label.setStyleSheet("border : 2px solid blue")
+
+        self.aec_work_badge = QLabel(self)
+        self.aec_work_badge.setAlignment(Qt.AlignCenter)
+        self.aec_work_badge.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self.aec_work_badge.setStyleSheet(
+            'QLabel {'
+            'background-color: rgba(32, 38, 45, 220);'
+            'color: white;'
+            'border: 1px solid rgba(255, 255, 255, 190);'
+            'border-radius: 10px;'
+            'padding: 3px 10px;'
+            'font-size: 12px;'
+            'font-weight: 600;'
+            '}'
+        )
+        self.aec_work_badge.hide()
 
         # system animations
         self.sys_src = _load_all_pic('sys')
@@ -1086,6 +1124,22 @@ class PetWidget(QWidget):
                 triggered=self._toggle_aec_sleep)
             self.StatMenu.addAction(self.aec_sleep_action)
 
+            self.aec_work_mode_menu = RoundMenu(self.tr('Work Mode'))
+            self.aec_work_mode_actions = {}
+            for mode, label in (
+                    ('auto', 'Auto-detect'),
+                    ('rhino', 'Manual Rhino'),
+                    ('revit', 'Manual Revit')):
+                action = Action(self.tr(label), self.aec_work_mode_menu)
+                action.setCheckable(True)
+                action.triggered.connect(
+                    lambda checked=False, selected_mode=mode:
+                    self._set_aec_work_mode(selected_mode))
+                self.aec_work_mode_menu.addAction(action)
+                self.aec_work_mode_actions[mode] = action
+            self._sync_aec_work_mode_actions()
+            self.StatMenu.addMenu(self.aec_work_mode_menu)
+
             self.aec_events_menu = RoundMenu(self.tr('AEC Events'))
             for event in self.aec_event_catalog:
                 action = Action(self.tr(event['name']), self.aec_events_menu)
@@ -1101,6 +1155,7 @@ class PetWidget(QWidget):
                 ('Health -10', 'debug_health_down'),
                 ('Level +1', 'debug_level_up'),
                 ('Level -1', 'debug_level_down'),
+                ('Coins +1,000', 'debug_coins'),
             ]
             for label, event in debug_actions:
                 action = Action(self.tr(label), self.aec_debug_menu)
@@ -1212,6 +1267,7 @@ class PetWidget(QWidget):
         self._set_menu(self.pets)
         self._set_Statusmenu()
         self._set_tray()
+        self._sync_aec_work_badge()
 
         # restart animation and interaction
         self.runAnimation()
@@ -1314,8 +1370,16 @@ class PetWidget(QWidget):
         :param pet_name: 宠物名称
         :return:
         """
+        self.aec_process_timer.stop()
         self._stop_aec_sleep()
         self.aec_working = False
+        self.aec_work_mode = 'auto'
+        self.aec_work_mode_actions = {}
+        self.aec_detected_apps = frozenset()
+        self.aec_focus_working = False
+        self.aec_work_elapsed = 0.0
+        self.aec_last_poll = None
+        self.aec_display_work_profile = None
         self.curr_pet_name = pet_name
         settings.petname = pet_name
         self.item_layers = {}
@@ -1332,9 +1396,12 @@ class PetWidget(QWidget):
             settings.pet_data.migrate_aec_progression()
             self.aec_progression = AECProgression(settings.pet_data)
             self.aec_event_catalog = self._load_aec_event_catalog()
+            self.aec_last_poll = time.monotonic()
+            self.aec_process_timer.start()
         else:
             self.aec_progression = None
             self.aec_event_catalog = AECEventCatalog([])
+            self.aec_process_timer.stop()
         settings.act_data.init_actData(pet_name, settings.pet_data.hp_tier, settings.get_progression_level())
         self._load_custom_anim()
 
@@ -1446,9 +1513,8 @@ class PetWidget(QWidget):
         # 初始位置
         #screen_geo = QDesktopWidget().availableGeometry() #QDesktopWidget().screenGeometry()
         screen_width = self.screen_width #screen_geo.width()
-        work_height = self.screen_height #screen_geo.height()
         x = self.current_screen.topLeft().x() + int(screen_width*0.8) - self.width()//2
-        y = self.current_screen.topLeft().y() + work_height - self.height()
+        y = self.floor_pos
         self.move(x,y)
         if settings.previous_anchor != settings.current_anchor:
             self.move(self.pos().x() - settings.previous_anchor[0] + settings.current_anchor[0],
@@ -1493,21 +1559,25 @@ class PetWidget(QWidget):
 
         # 初始位置
         #screen_geo = QDesktopWidget().availableGeometry() #QDesktopWidget().screenGeometry()
-        screen_width = self.screen_width #screen_geo.width()
-        work_height = self.screen_height #screen_geo.height()
         x = self.pos().x() + settings.current_anchor[0]
+        self._update_floor_pos()
         if settings.set_fall:
-            y = self.current_screen.topLeft().y() + work_height-self.height()+settings.current_anchor[1]
+            y = self.floor_pos + settings.current_anchor[1]
         else:
             y = self.pos().y() + settings.current_anchor[1]
-        # make sure that for all stand png, png bottom is the ground
-        #self.floor_pos = work_height-self.height()
-        self.floor_pos = self.current_screen.topLeft().y() + work_height - self.height()
         self.move(x,y)
         self.move_sig.emit(self.pos().x()+self.width()//2, self.pos().y()+self.height())
 
         if setImg:
             self.set_img()
+
+    def _update_floor_pos(self):
+        self.floor_pos = (
+            self.current_screen.topLeft().y()
+            + self.screen_height
+            - self.height()
+            + GROUND_DETECTION_OFFSET
+        )
 
     def set_img(self): #, img: QImage) -> None:
         """
@@ -1660,6 +1730,110 @@ class PetWidget(QWidget):
     def _aec_sleep_tick(self):
         self._handle_aec_event('sleep_minute')
 
+    def _sync_aec_work_mode_actions(self):
+        for mode, action in self.aec_work_mode_actions.items():
+            action.setChecked(mode == self.aec_work_mode)
+
+    def _set_aec_work_mode(self, mode):
+        if mode not in ('auto', 'rhino', 'revit') or not self.aec_progression:
+            return
+        self.aec_work_mode = mode
+        self.aec_work_elapsed = 0.0
+        self._sync_aec_work_mode_actions()
+        self._update_aec_work_state()
+
+    def _get_aec_work_profiles(self):
+        return resolve_work_profiles(
+            self.aec_work_mode,
+            self.aec_detected_apps,
+            self.aec_focus_working,
+        )
+
+    def _update_aec_work_state(self):
+        profiles, _ = self._get_aec_work_profiles()
+        working = bool(profiles) or self.aec_focus_working
+        if working and self.aec_sleeping:
+            self._stop_aec_sleep()
+        self.aec_display_work_profile = (
+            'revit' if 'revit' in profiles else
+            'rhino' if profiles else None)
+        if working != self.aec_working:
+            self.aec_working = working
+            self._set_aec_animation_state('work' if working else 'idle')
+        self._sync_aec_work_badge()
+
+    def _sync_aec_work_badge(self):
+        if not self.pet_conf.aec_mode:
+            self.aec_work_badge.hide()
+            return
+
+        label = get_work_badge_label(
+            self.aec_work_mode,
+            self.aec_display_work_profile,
+            self.aec_focus_working,
+            self.aec_detected_apps,
+        )
+        if label is None:
+            self.aec_work_badge.hide()
+            return
+
+        self.aec_work_badge.setText(self.tr(label))
+        self.aec_work_badge.adjustSize()
+        self.aec_work_badge.move(
+            (self.width() - self.aec_work_badge.width()) // 2, 2)
+        self.aec_work_badge.show()
+        self.aec_work_badge.raise_()
+
+    def _poll_aec_work(self):
+        if not self.aec_progression:
+            self.aec_process_timer.stop()
+            return
+
+        now = time.monotonic()
+        elapsed = 0.0
+        if self.aec_last_poll is not None:
+            elapsed = max(0.0, now - self.aec_last_poll)
+        self.aec_last_poll = now
+
+        try:
+            self.aec_detected_apps = get_running_work_apps()
+        except (OSError, subprocess.SubprocessError) as error:
+            logging.getLogger(__name__).warning(
+                'AEC process detection failed: %s', error)
+            self._update_aec_work_state()
+            return
+
+        profiles, detected = self._get_aec_work_profiles()
+        self._update_aec_work_state()
+        if not profiles or self.aec_focus_working:
+            self.aec_work_elapsed = 0.0
+            return
+
+        elapsed = min(elapsed, WORK_POLL_INTERVAL_MS / 1000.0 * 2)
+        self.aec_work_elapsed += elapsed
+        while self.aec_work_elapsed >= WORK_MINUTE_SECONDS:
+            self.aec_work_elapsed -= WORK_MINUTE_SECONDS
+            self._account_aec_work_minute(profiles, detected)
+
+    def _account_aec_work_minute(self, profiles=None, detected=None):
+        if not self.aec_progression:
+            return
+        if profiles is None or detected is None:
+            profiles, detected = self._get_aec_work_profiles()
+        if not profiles:
+            return
+
+        health_change, exp_gain, coin_gain = self.aec_progression.work_minute(
+            profiles, detected)
+        if exp_gain:
+            self._change_status('fv', exp_gain, from_mod='AEC', send_note=True)
+        if health_change:
+            self._change_status(
+                'hp', health_change, from_mod='AEC', send_note=True)
+        if coin_gain:
+            self.aec_add_coins.emit(
+                coin_gain, self.tr('AEC work reward'), False)
+
     def _set_aec_animation_state(self, state):
         if 'Animation' in self.workers:
             self.workers['Animation'].set_aec_state(state)
@@ -1745,13 +1919,15 @@ class PetWidget(QWidget):
             return
         if event == 'work_start':
             self._stop_aec_sleep()
-            self.aec_working = True
+            self.aec_focus_working = True
+            self.aec_work_elapsed = 0.0
             self.aec_progression.reset_rest()
-            self._set_aec_animation_state('work')
+            self._update_aec_work_state()
             return
         if event == 'work_end':
-            self.aec_working = False
-            self._set_aec_animation_state('idle')
+            self.aec_focus_working = False
+            self.aec_work_elapsed = 0.0
+            self._update_aec_work_state()
             return
         if event == 'sleep_start':
             if self.aec_working:
@@ -1765,7 +1941,7 @@ class PetWidget(QWidget):
             return
         if event == 'sleep_wake':
             self._stop_aec_sleep()
-            self._set_aec_animation_state('work' if self.aec_working else 'idle')
+            self._update_aec_work_state()
             return
         if event == 'debug_health_up':
             self._change_status('hp', 10, from_mod='AEC', send_note=True)
@@ -1779,21 +1955,23 @@ class PetWidget(QWidget):
         if event == 'debug_level_down':
             self._debug_adjust_aec_level(-1)
             return
+        if event == 'debug_coins':
+            self.aec_add_coins.emit(
+                1000, self.tr('AEC Debug reward'), True)
+            return
         if event == 'work_minute':
             self._stop_aec_sleep()
-            health_change, exp_gain = self.aec_progression.work_minute()
+            self._account_aec_work_minute()
+            return
         elif event == 'rest_minute':
             return
         elif event == 'sleep_minute':
             if not self.aec_sleeping:
                 return
             health_change = self.aec_progression.rest_minute()
-            exp_gain = 0
         else:
             return
 
-        if exp_gain:
-            self._change_status('fv', exp_gain, from_mod='AEC', send_note=True)
         if health_change:
             self._change_status('hp', health_change, from_mod='AEC', send_note=True)
 
@@ -2363,7 +2541,7 @@ class PetWidget(QWidget):
         self.screen_geo = screen.availableGeometry() #screenGeometry()
         self.screen_width = self.screen_geo.width()
         self.screen_height = self.screen_geo.height()
-        self.floor_pos = self.current_screen.topLeft().y() + self.screen_height -self.height()
+        self._update_floor_pos()
 
 
     def limit_in_screen(self, new_x, new_y, on_action=False):
