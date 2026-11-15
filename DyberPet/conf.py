@@ -532,9 +532,10 @@ class Act:
         for i in matching_idx:
             img.append(pic_dict["%s_%s"%(images, i)])
 
-        if scale != 1:
-            img = [i.scaled(int(i.width() * scale), 
-                            int(i.height() * scale),
+        image_scale = conf_param.get('scale', scale)
+        if image_scale != 1:
+            img = [i.scaled(int(i.width() * image_scale),
+                            int(i.height() * image_scale),
                             aspectMode=Qt.KeepAspectRatio,
                             mode=Qt.SmoothTransformation) for i in img]
 
@@ -867,6 +868,8 @@ class PetData:
             'work_minutes_today': 0,
             'work_date': datetime.now().date().isoformat(),
             'exp_remainder': 0.0,
+            'coin_remainder': 0.0,
+            'health_remainder': 0.0,
         }
         for key, value in defaults.items():
             aec_data.setdefault(key, value)
@@ -878,6 +881,12 @@ class PetData:
             aec_data['exp_remainder'] = 0.0
         aec_data['exp_remainder'] = max(0.0, float(aec_data['exp_remainder']))
         aec_data['exp_remainder'] %= 1.0
+        for key in ('coin_remainder', 'health_remainder'):
+            if not isinstance(aec_data[key], (int, float)):
+                aec_data[key] = 0.0
+            aec_data[key] = max(0.0, float(aec_data[key]))
+        aec_data['coin_remainder'] %= 1.0
+        aec_data['health_remainder'] %= 25.0
         return data_params
 
     def _check_coins(self, data_params):

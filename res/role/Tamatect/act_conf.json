@@ -10,46 +10,21 @@
     "frame_refresh": 0.5
   },
   "drag": {
-    "images": "idle",
+    "images": "drag",
     "act_num": 1
   },
   "fall": {
-    "images": "idle",
+    "images": "falling",
     "act_num": 1
   },
-  "feed_1": {
-    "images": "eat_1",
-    "act_num": 4,
-    "frame_refresh": 0.3
-  },
-  "feed_2": {
-    "images": "eat_2",
-    "act_num": 4,
-    "frame_refresh": 0.3
-  },
-  "feed_3": {
-    "images": "eat_3",
-    "act_num": 4,
-    "frame_refresh": 0.3
-  },
-  "work": {
-    "images": "work",
-    "act_num": 1,
-    "frame_refresh": 0.5
-  },
-  "sleep": {
-    "images": "sleep",
-    "act_num": 1,
-    "frame_refresh": 0.5
-  },
-  "bim_crash": {
-    "images": "bim_crash",
-    "act_num": 2,
-    "frame_refresh": 0.5
+  "land": {
+    "images": "land",
+    "act_num": 1
   },
   "aec_hard_hat": {
     "images": "aec_hard_hat",
     "act_num": 1,
-    "frame_refresh": 0.5
+    "frame_refresh": 0.5,
+    "scale": 0.4959
   }
 }

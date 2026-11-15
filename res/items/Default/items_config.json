@@ -1,4 +1,48 @@
 {
+  "Coffee": {
+    "name": "Coffee",
+    "image": "coffee.png",
+    "effect_HP": 4,
+    "effect_FV": 2,
+    "drop_rate": 0,
+    "fv_lock": 0,
+    "cost": 40,
+    "pet_limit": ["Tamatect"],
+    "description": "A small boost for a long workday."
+  },
+  "Coke": {
+    "name": "Coke",
+    "image": "coke.png",
+    "effect_HP": 7,
+    "effect_FV": 2,
+    "drop_rate": 0,
+    "fv_lock": 0,
+    "cost": 60,
+    "pet_limit": ["Tamatect"],
+    "description": "A fizzy, refreshing drink."
+  },
+  "Onigiri": {
+    "name": "Onigiri",
+    "image": "onigiri.png",
+    "effect_HP": 10,
+    "effect_FV": 3,
+    "drop_rate": 0,
+    "fv_lock": 0,
+    "cost": 80,
+    "pet_limit": ["Tamatect"],
+    "description": "A satisfying rice-ball lunch."
+  },
+  "Pizza": {
+    "name": "Pizza",
+    "image": "pizza.png",
+    "effect_HP": 15,
+    "effect_FV": 4,
+    "drop_rate": 0,
+    "fv_lock": 0,
+    "cost": 120,
+    "pet_limit": ["Tamatect"],
+    "description": "A hearty meal for a hard day's work."
+  },
   "汉堡": {
     "name": "汉堡",
     "image": "15_burger.png",

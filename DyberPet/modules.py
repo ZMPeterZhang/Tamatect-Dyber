@@ -709,17 +709,36 @@ class Interaction_worker(QObject):
                 self.drop()
 
         else:
-            #self.stop_interact()
-            #self.interact = 'animat' #None
-            #self.act_name = 'onfloor' #None
-            self.start_interact('animat', 'onfloor')
-            #settings.playid = 0
-            #settings.act_id = 0
+            self.start_interact('onfloor')
 
         #self.sig_repaint_inter.emit()
 
 
         #elif set_fall==0 and onfloor==0:
+
+    def onfloor(self, act_name=None):
+        acts = self.pet_conf.on_floor
+        if not acts.images:
+            self.stop_interact()
+            return
+
+        self.img_from_act(acts)
+
+        if settings.fall_right:
+            settings.previous_img = settings.current_img
+            transform = QTransform()
+            transform.scale(-1, 1)
+            settings.current_img = settings.current_img.transformed(transform)
+            settings.current_anchor = [
+                -int(acts.anchor[0] * settings.tunable_scale),
+                int(acts.anchor[1] * settings.tunable_scale),
+            ]
+
+        if settings.previous_img != settings.current_img or settings.previous_anchor != settings.current_anchor:
+            self.sig_setimg_inter.emit()
+
+        if settings.playid == 0:
+            self.stop_interact()
 
     def drop(self):
         #掉落
@@ -767,16 +786,7 @@ class Interaction_worker(QObject):
             self.sig_move_inter.emit(plus_x, plus_y)
 
     def use_item(self, item):
-        # 宠物进行 三个等级的喂食动画
-        if item in self.pet_conf.item_favorite:
-            #print('animation 1 here!')
-            self.start_interact('animat','feed_1')
-        elif item in self.pet_conf.item_dislike:
-            #print('animation 3 here!')
-            self.start_interact('animat','feed_3')
-        else:
-            #print('animation 2 here!')
-            self.start_interact('animat','feed_2')
+        self.start_interact('animat', 'default')
 
         '''
         self.interact = 'animat' #None

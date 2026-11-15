@@ -5,6 +5,8 @@ from DyberPet.aec import (
     AECEventCatalog,
     AECProgression,
     migrate_aec_progression,
+    parse_running_work_apps,
+    resolve_work_profiles,
 )
 from DyberPet.conf import migrate_role_mapping, migrate_role_name
 
@@ -45,9 +47,10 @@ class AECProgressionTests(unittest.TestCase):
         progression = AECProgression(FakePetData())
         results = [progression.work_minute() for _ in range(25)]
 
-        self.assertEqual(sum(exp_gain for _, exp_gain in results), 25)
+        self.assertEqual(sum(exp_gain for _, exp_gain, _ in results), 25)
         self.assertEqual(results[-1][0], -1)
-        self.assertEqual(sum(health_change for health_change, _ in results), -1)
+        self.assertEqual(sum(health_change for health_change, _, _ in results), -1)
+        self.assertEqual(sum(coins for _, _, coins in results), 625)
 
     def test_overwork_reduces_exp_rate(self):
         pet_data = FakePetData({
@@ -59,7 +62,7 @@ class AECProgressionTests(unittest.TestCase):
 
         results = [progression.work_minute() for _ in range(2)]
 
-        self.assertEqual(sum(exp_gain for _, exp_gain in results), 1)
+        self.assertEqual(sum(exp_gain for _, exp_gain, _ in results), 1)
         self.assertEqual(pet_data.aec_data['work_minutes_today'], 122)
 
     def test_work_counter_resets_on_new_day(self):
@@ -70,11 +73,69 @@ class AECProgressionTests(unittest.TestCase):
         })
         progression = AECProgression(pet_data)
 
-        _, exp_gain = progression.work_minute()
+        _, exp_gain, _ = progression.work_minute()
 
         self.assertEqual(exp_gain, 1)
         self.assertEqual(pet_data.aec_data['work_minutes_today'], 1)
         self.assertEqual(pet_data.aec_data['exp_remainder'], 0.0)
+
+    def test_revit_keeps_fractional_coins_and_doubles_health_loss(self):
+        pet_data = FakePetData()
+        progression = AECProgression(pet_data)
+
+        results = [
+            progression.work_minute(('revit',))
+            for _ in range(25)
+        ]
+
+        self.assertEqual(sum(health for health, _, _ in results), -2)
+        self.assertEqual(sum(coins for _, _, coins in results), 937)
+        self.assertEqual(pet_data.aec_data['coin_remainder'], 0.5)
+
+    def test_detected_rhino_and_revit_rewards_stack(self):
+        pet_data = FakePetData()
+        progression = AECProgression(pet_data)
+
+        health, exp, coins = progression.work_minute(
+            ('rhino', 'revit'), detected=True)
+
+        self.assertEqual((health, exp, coins), (0, 2, 187))
+        self.assertEqual(pet_data.aec_data['coin_remainder'], 0.5)
+        self.assertEqual(pet_data.aec_data['health_remainder'], 2.0)
+        self.assertEqual(pet_data.aec_data['work_minutes_today'], 2)
+
+    def test_tasklist_process_names_are_matched_case_insensitively(self):
+        output = (
+            '"Image Name","PID","Session Name","Session#","Mem Usage"\r\n'
+            '"Rhino.exe","123","Console","1","1,000 K"\r\n'
+            '"REVIT.EXE","456","Console","1","2,000 K"\r\n'
+            '"notepad.exe","789","Console","1","3,000 K"\r\n'
+        )
+
+        self.assertEqual(
+            parse_running_work_apps(output),
+            frozenset(('rhino', 'revit')),
+        )
+
+    def test_manual_work_mode_overrides_detected_applications(self):
+        self.assertEqual(
+            resolve_work_profiles(
+                'rhino', frozenset(('rhino', 'revit')), focus_working=True),
+            (('rhino',), False),
+        )
+
+    def test_auto_work_mode_combines_detected_applications(self):
+        self.assertEqual(
+            resolve_work_profiles(
+                'auto', frozenset(('rhino', 'revit'))),
+            (('rhino', 'revit'), True),
+        )
+
+    def test_focus_task_defaults_to_manual_rhino_when_auto_detecting(self):
+        self.assertEqual(
+            resolve_work_profiles('auto', frozenset(), focus_working=True),
+            (('rhino',), False),
+        )
 
     def test_sleep_recovers_health_once_per_five_minutes(self):
         progression = AECProgression(FakePetData())

@@ -2745,6 +2745,8 @@ Everytime you finish a 25min Pomodoro, you get coin rewarded"""),
 
     def reward_coins(self, nminutes):
         #print(f"Reward {nminutes} minutes")
+        if getattr(getattr(settings, 'pet_conf', None), 'aec_mode', False):
+            return
         if nminutes <= 0:
             return
         n_coins = nminutes*25
