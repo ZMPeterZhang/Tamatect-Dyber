@@ -8,5 +8,25 @@
       "Tamatect"
     ],
     "description": "A placeable item. Uses one placement slot."
+  },
+  "Monitor": {
+    "image": "monitor.png",
+    "type": "collection",
+    "cost": 5,
+    "fv_lock": 0,
+    "pet_limit": [
+      "Tamatect"
+    ],
+    "description": "A desktop monitor. Uses one placement slot."
+  },
+  "Paper & Pen": {
+    "image": "paper_pen.png",
+    "type": "collection",
+    "cost": 5,
+    "fv_lock": 0,
+    "pet_limit": [
+      "Tamatect"
+    ],
+    "description": "Paper and a pen for the desk. Uses one placement slot."
   }
 }

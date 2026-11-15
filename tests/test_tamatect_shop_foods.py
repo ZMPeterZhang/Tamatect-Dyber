@@ -13,7 +13,7 @@ class TamatectShopFoodTests(unittest.TestCase):
                 encoding='UTF-8') as item_file:
             items = json.load(item_file)
 
-        for name in ('Coffee', 'Coke', 'Onigiri', 'Pizza'):
+        for name in ('Coffee', 'Coke', 'Energy Drink', 'Onigiri', 'Pizza', 'Gyudon'):
             with self.subTest(item=name):
                 item = items[name]
                 self.assertGreater(item['cost'], 0)

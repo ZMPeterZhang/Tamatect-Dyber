@@ -21,6 +21,17 @@
     "pet_limit": ["Tamatect"],
     "description": "A fizzy, refreshing drink."
   },
+  "Energy Drink": {
+    "name": "Energy Drink",
+    "image": "energy_drink.png",
+    "effect_HP": 7,
+    "effect_FV": 2,
+    "drop_rate": 0,
+    "fv_lock": 0,
+    "cost": 60,
+    "pet_limit": ["Tamatect"],
+    "description": "A zesty lime energy drink."
+  },
   "Onigiri": {
     "name": "Onigiri",
     "image": "onigiri.png",
@@ -42,6 +53,17 @@
     "cost": 120,
     "pet_limit": ["Tamatect"],
     "description": "A hearty meal for a hard day's work."
+  },
+  "Gyudon": {
+    "name": "Gyudon",
+    "image": "gyudon.png",
+    "effect_HP": 15,
+    "effect_FV": 4,
+    "drop_rate": 0,
+    "fv_lock": 0,
+    "cost": 120,
+    "pet_limit": ["Tamatect"],
+    "description": "A hearty bowl of beef and rice."
   },
   "汉堡": {
     "name": "汉堡",

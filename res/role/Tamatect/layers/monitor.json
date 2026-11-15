@@ -1,0 +1,10 @@
+{
+  "name": "Monitor",
+  "inventory_item": "Monitor",
+  "offset_x": 125.0,
+  "offset_y": 160.0,
+  "scale": 1.0,
+  "visible": false,
+  "flipped": false,
+  "draw_order": 2
+}

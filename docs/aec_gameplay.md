@@ -42,6 +42,8 @@ Placeable items can be added from the AEC Debug menu with **Add Shop Item…**;
 the importer also supports one-use health consumables. Use a collection item
 from the Backpack to place or withdraw it. Placeable items use one slot each,
 starting with two slots and gaining one per progression level.
+The Tamatect catalog includes a Monitor and Paper & Pen alongside the Desk Lamp.
+Energy Drink and Gyudon are also available as purchasable foods.
 
 Each static layer is stored as a paired PNG and JSON file under
 `res/role/<role>/layers/`. The JSON `inventory_item` field links it to the

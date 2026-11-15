@@ -1,9 +1,9 @@
 {
   "name": "AEC Hard Hat",
   "inventory_item": "AEC Hard Hat",
-  "offset_x": 72.83999999999992,
-  "offset_y": 58.20000000000003,
-  "scale": 0.64,
+  "offset_x": 44.89999999999995,
+  "offset_y": 18.000000000000007,
+  "scale": 0.9,
   "visible": true,
   "flipped": false,
   "draw_order": 1

@@ -1,0 +1,10 @@
+{
+  "name": "Paper & Pen",
+  "inventory_item": "Paper & Pen",
+  "offset_x": 210.0,
+  "offset_y": 167.0,
+  "scale": 1.0,
+  "visible": false,
+  "flipped": false,
+  "draw_order": 3
+}
