@@ -30,7 +30,7 @@
 </p>
 
 <p align="center">
-English | <a href="README.md">简体中文</a>
+English | <a href="README_CN.md">简体中文</a>
 </p>
 
 <p align="center">
@@ -53,7 +53,7 @@ English | <a href="README.md">简体中文</a>
 ## Project Status
 
 - **Latest version: v0.11.5**, with a packaged Windows build available in [Release](https://github.com/ChaozhongLiu/DyberPet/releases/tag/v0.11.5).
-- The repository is still maintained primarily in Chinese, but feedback and bug reports are welcome.
+- English is the default README; use the language link above to open the Simplified Chinese version.
 - The LLM-related module is still under active development and is not yet fully open-sourced.
 - There are reposted mirrors on CSDN / GitCode that are not affiliated with this project. Please use this GitHub repository as the canonical source.
 
@@ -105,4 +105,14 @@ If you are interested in joining, feel free to [message me](https://space.bilibi
 - Pictures in the Demo partially come from [daywa1kr](https://github.com/daywa1kr/Desktop-Cat)
 - Animation module reference: [yanji255](https://toscode.gitee.com/yanji255/desktop_pet/)  
 - Dragging and falling reference: [WolfChen1996](https://github.com/WolfChen1996/DesktopPet)
+
+## Contributors
+Thanks to all contributors for their work on Tamatect and DyberPet:
+- [Kosai Ito](https://www.linkedin.com/in/kosai-ito-247571449)
+- [Peter Zhang](https://www.linkedin.com/in/peter-zhang-a308b818a)
+- [Rafael Pallasi](https://www.linkedin.com/in/rafael-pallasi)
+- [千翔 平木](https://www.linkedin.com/in/%E5%8D%83%E7%BF%94-%E5%B9%B3%E6%9C%A8-467460449)
+- [Haruki Nakayama](https://www.linkedin.com/in/haruki-nakayama-664429449)
+
+Special thanks to [AEC Tech](https://www.aectech.us/) and the AEC Tech NYC 2026 Hackathon.
 
