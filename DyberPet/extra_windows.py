@@ -56,7 +56,7 @@ checkStyle = f"""
 QCheckBox {{
     padding: 2px;
     font-size: 15px;
-    font-family: "黑体";
+    font-family: "Arial";
     height: 25px
 }}
 
@@ -100,7 +100,7 @@ QPushButton {
     border-style: solid;
     padding: 7px;
     font: 16px;
-    font-family: "黑体";
+    font-family: "Arial";
     border-width: 3px;
     border-radius: 10px;
     border-color: #B39C86;
@@ -196,7 +196,7 @@ QComboBox {{
     border-radius: 4px;
     padding: 4px;
     padding-left: 10px;
-    font-family: "黑体";
+    font-family: "Arial";
     font-size: 16px;
 }}
 
@@ -236,7 +236,7 @@ QFrame {{
 
 QLabel {{
     font-size: 16px;
-    font-family: "黑体";
+    font-family: "Arial";
 }}
 
 {sliderStyle}
@@ -244,7 +244,7 @@ QLabel {{
 QCheckBox {{
     padding: 2px;
     font-size: 16px;
-    font-family: "黑体";
+    font-family: "Arial";
     height: 25px
 }}
 
@@ -641,7 +641,7 @@ QLabel {
     border: 0;
     background-color: #F5F4EF;
     font-size: 15px;
-    font-family: "黑体";
+    font-family: "Arial";
     width: 10px;
     height: 20px
 }
@@ -678,7 +678,7 @@ QFrame {{
 
 QLabel {{
     font-size: 16px;
-    font-family: "黑体";
+    font-family: "Arial";
 }}
 
 {pushbuttonStyle}
@@ -706,14 +706,14 @@ class Tomato(QWidget):
         if os.path.isfile(pomodoro_conf):
             self.config = json.load(open(pomodoro_conf, 'r', encoding='UTF-8'))
         else:
-            self.config = {"title":"番茄钟",
-                        "Description": "番茄工作法是一种时间管理方法，该方法使用一个定时器来分割出25分钟的工作时间和5分钟的休息时间，提高效率。",
-                        "option_text": "想要执行",
-                        "options":{"番茄钟": {
-                                             "note_start":"新的番茄时钟开始了哦！加油！",
-                                             "note_first":"个番茄时钟设定完毕！开始了哦！",
-                                             "note_end":"叮叮~ 番茄时间到啦！休息5分钟！",
-                                             "note_last":"叮叮~ 番茄时间全部结束啦！"
+            self.config = {"title":"Pomodoro",
+                        "Description": "The Pomodoro Technique splits work into 25-minute sessions and 5-minute breaks to help you stay focused.",
+                        "option_text": "Sessions",
+                        "options":{"Pomodoro": {
+                                             "note_start":"A new Pomodoro session is starting. You've got this!",
+                                             "note_first":"Your Pomodoro session is set. Let's begin!",
+                                             "note_end":"Time for a 5-minute break!",
+                                             "note_last":"All Pomodoro sessions are complete!"
                                              }
                                   }
                         }
@@ -769,7 +769,7 @@ class Tomato(QWidget):
                         border-radius: 10px;
                         background-color: #F5F4EF;
                         font-size: 15px;
-                        font-family: "黑体";
+                        font-family: "Arial";
                         padding: 10px;
                         width: 30px;
                     }
@@ -789,11 +789,11 @@ class Tomato(QWidget):
         self.n_tomato.setFixedSize(int(38), int(38))
 
 
-        self.n_tomato_label1 = QLabel(self.tr("开始"))
+        self.n_tomato_label1 = QLabel(self.tr("Start"))
         #self.n_tomato_label1.setFixedSize(int(100*size_factor), int(76*size_factor))
         self.n_tomato_label1.setFixedSize(int(100), int(76))
         self.n_tomato_label1.setAlignment(Qt.AlignCenter)
-        self.n_tomato_label2 = QLabel(self.tr("次"))
+        self.n_tomato_label2 = QLabel(self.tr("sessions"))
         #self.n_tomato_label2.setFixedSize(int(50*size_factor), int(76*size_factor))
         self.n_tomato_label2.setFixedSize(int(50), int(76))
         self.n_tomato_label2.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
@@ -816,7 +816,7 @@ class Tomato(QWidget):
                                             QLabel {
                                                 border: 0px;
                                                 font-size: 16px;
-                                                font-family: "黑体";
+                                                font-family: "Arial";
                                             }
                                          """)
 
@@ -824,11 +824,11 @@ class Tomato(QWidget):
         hbox_t.addWidget(self.status_frame, Qt.AlignVCenter | Qt.AlignLeft)
 
         vbox_tsub = QVBoxLayout()
-        self.button_confirm = QPushButton(self.tr("确定"))
+        self.button_confirm = QPushButton(self.tr("Confirm"))
         #self.button_confirm.setFixedSize(int(80*size_factor), int(40*size_factor))
         self.button_confirm.setFixedSize(int(80), int(40))
         self.button_confirm.clicked.connect(self.confirm)
-        self.button_cancel = QPushButton(self.tr("停止"))
+        self.button_cancel = QPushButton(self.tr("Stop"))
         self.button_cancel.setFixedSize(int(80), int(40))
         #self.button_cancel.setFixedSize(int(80*size_factor), int(40*size_factor))
         self.button_cancel.clicked.connect(self.cancelTomato)
@@ -899,7 +899,7 @@ class Tomato(QWidget):
             n_tm = int(n_tm)
         #print(n_tm)
         self.tomato_on = True
-        self.n_tomato_label1.setText(self.tr('正在进行第'))
+        self.n_tomato_label1.setText(self.tr('Session #'))
         self.n_tomato.setReadOnly(True)
         self.button_confirm.setDisabled(True)
         self.tm_options.setDisabled(True)
@@ -913,7 +913,7 @@ class Tomato(QWidget):
     def endTomato(self):
         self.tomato_on = False
         self.tomato_index = 0
-        self.n_tomato_label1.setText(self.tr('开始'))
+        self.n_tomato_label1.setText(self.tr('Start'))
         self.n_tomato.setReadOnly(False)
         self.button_confirm.setDisabled(False)
         self.tm_options.setDisabled(False)
@@ -941,7 +941,7 @@ QFrame {{
 }}
 QLabel {{
     font-size: 16px;
-    font-family: "黑体";
+    font-family: "Arial";
 }}
 
 {pushbuttonStyle}
@@ -967,7 +967,7 @@ class Focus(QWidget):
 
         # 标题栏
         hbox_f0 = QHBoxLayout()
-        self.title = QLabel(self.tr("专注时间"))
+        self.title = QLabel(self.tr("Focus Time"))
         self.title.setStyleSheet(TomatoTitle)
         icon = QLabel()
         #icon.setStyleSheet(TomatoTitle)
@@ -992,9 +992,9 @@ class Focus(QWidget):
 
         # 设定栏
         vbox_f = QVBoxLayout()
-        self.checkA = QCheckBox(self.tr("持续一段时间"), self)
+        self.checkA = QCheckBox(self.tr("For a duration"), self)
         #self.checkA.setFont(QFont('宋体', all_font_size))
-        self.checkB = QCheckBox(self.tr("定时结束"), self)
+        self.checkB = QCheckBox(self.tr("Until a specific time"), self)
         #self.checkB.setFont(QFont('宋体', all_font_size))
         self.checkA.stateChanged.connect(self.uncheck)
         self.checkB.stateChanged.connect(self.uncheck)
@@ -1029,11 +1029,11 @@ class Focus(QWidget):
         self.countdown_m.setSingleStep(5)
         '''
         hbox_f1.addWidget(self.countdown_h)
-        self.label_h = QLabel(self.tr('小时'))
+        self.label_h = QLabel(self.tr('hours'))
         #label_h.setFont(QFont('宋体', all_font_size))
         hbox_f1.addWidget(self.label_h)
         hbox_f1.addWidget(self.countdown_m)
-        self.label_m = QLabel(self.tr('分钟后'))
+        self.label_m = QLabel(self.tr('minutes from now'))
         #label_m.setFont(QFont('宋体', all_font_size))
         hbox_f1.addWidget(self.label_m)
         hbox_f1.addStretch(10)
@@ -1066,15 +1066,15 @@ class Focus(QWidget):
         self.time_m.setMinimum(0)
         self.time_m.setMaximum(59)
         '''
-        self.label_d = QLabel(self.tr('到'))
+        self.label_d = QLabel(self.tr('At'))
         #label_d.setFont(QFont('宋体', all_font_size))
         hbox_f2.addWidget(self.label_d)
         hbox_f2.addWidget(self.time_h)
-        self.label_h2 = QLabel(self.tr('点'))
+        self.label_h2 = QLabel(self.tr(':'))
         #label_h.setFont(QFont('宋体', all_font_size))
         hbox_f2.addWidget(self.label_h2)
         hbox_f2.addWidget(self.time_m)
-        self.label_m2 = QLabel(self.tr('分'))
+        self.label_m2 = QLabel(self.tr(''))
         #label_m.setFixedHeight(100)
         #label_m.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
         #label_m.setFont(QFont('宋体', all_font_size))
@@ -1083,10 +1083,10 @@ class Focus(QWidget):
         #hbox_f2.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
 
         hbox_f3 = QHBoxLayout()
-        self.button_confirm = QPushButton(self.tr("开始"))
+        self.button_confirm = QPushButton(self.tr("Start"))
         #self.button_confirm.setFont(QFont('宋体', all_font_size))
         self.button_confirm.clicked.connect(self.confirm)
-        self.button_cancel = QPushButton(self.tr("停止"))
+        self.button_cancel = QPushButton(self.tr("Stop"))
         #self.button_cancel.setFont(QFont('宋体', all_font_size))
         self.button_cancel.clicked.connect(self.cancelFocus_func)
         self.button_cancel.setDisabled(True)
@@ -1173,13 +1173,13 @@ class Focus(QWidget):
 
     def confirm(self):
         if self.focus_on and not self.focus_pause:
-            self.button_confirm.setText(self.tr('继续'))
+            self.button_confirm.setText(self.tr('Resume'))
             self.focus_pause = True
             #记得考虑暂停后终止的情况
             self.pauseTimer_focus.emit(True)
 
         elif self.focus_on and self.focus_pause:
-            self.button_confirm.setText(self.tr('暂停'))
+            self.button_confirm.setText(self.tr('Pause'))
             self.focus_pause = False
             #记得考虑暂停后终止的情况
             self.pauseTimer_focus.emit(False)
@@ -1216,7 +1216,7 @@ class Focus(QWidget):
 
             self.focus_on = True
             if self.pausable:
-                self.button_confirm.setText(self.tr('暂停'))
+                self.button_confirm.setText(self.tr('Pause'))
             else:
                 self.button_confirm.setDisabled(True)
             self.button_cancel.setDisabled(False)
@@ -1228,7 +1228,7 @@ class Focus(QWidget):
     def endFocus(self):
         self.focus_on = False
         self.pausable = False
-        self.button_confirm.setText(self.tr('开始'))
+        self.button_confirm.setText(self.tr('Start'))
         self.button_cancel.setDisabled(True)
         self.button_confirm.setDisabled(False)
 
@@ -1248,7 +1248,7 @@ QFrame {{
 
 QLabel {{
     font-size: 15px;
-    font-family: "黑体";
+    font-family: "Arial";
 }}
 
 QTextEdit, QListView {{
@@ -1303,11 +1303,11 @@ class Remindme(QWidget):
 
         vbox_r = QVBoxLayout()
 
-        self.checkA = QCheckBox(self.tr("一段时间后提醒"), self)
+        self.checkA = QCheckBox(self.tr("After a duration"), self)
         #self.checkA.setFont(QFont('宋体', all_font_size))
-        self.checkB = QCheckBox(self.tr("定时提醒"), self)
+        self.checkB = QCheckBox(self.tr("At a specific time"), self)
         #self.checkB.setFont(QFont('宋体', all_font_size))
-        self.checkC = QCheckBox(self.tr("间隔重复"), self)
+        self.checkC = QCheckBox(self.tr("Repeat"), self)
         #self.checkC.setFont(QFont('宋体', all_font_size))
         self.checkA.stateChanged.connect(self.uncheck)
         self.checkB.stateChanged.connect(self.uncheck)
@@ -1315,7 +1315,7 @@ class Remindme(QWidget):
 
         # 标题栏
         hbox_r0 = QHBoxLayout()
-        self.title = QLabel(self.tr("提醒事项"))
+        self.title = QLabel(self.tr("Reminders"))
         self.title.setStyleSheet(TomatoTitle)
         icon = QLabel()
         #icon.setStyleSheet(TomatoTitle)
@@ -1351,11 +1351,11 @@ class Remindme(QWidget):
         #self.countdown_m.setFixedSize(int(38*size_factor), int(38*size_factor))
 
         hbox_r1.addWidget(self.countdown_h)
-        self.label_h = QLabel(self.tr('小时'))
+        self.label_h = QLabel(self.tr('hours'))
         #label_h.setFont(QFont('宋体', all_font_size))
         hbox_r1.addWidget(self.label_h)
         hbox_r1.addWidget(self.countdown_m)
-        self.label_m = QLabel(self.tr('分钟后'))
+        self.label_m = QLabel(self.tr('minutes from now'))
         #label_m.setFont(QFont('宋体', all_font_size))
         hbox_r1.addWidget(self.label_m)
         hbox_r1.addStretch(10)
@@ -1381,23 +1381,23 @@ class Remindme(QWidget):
         self.time_m.setFixedSize(int(38), int(38))
         #self.time_m.setFixedSize(int(38*size_factor), int(38*size_factor))
 
-        self.label_d = QLabel(self.tr('到'))
+        self.label_d = QLabel(self.tr('At'))
         #label_d.setFont(QFont('宋体', all_font_size))
         hbox_r2.addWidget(self.label_d)
         hbox_r2.addWidget(self.time_h)
-        self.label_h2 = QLabel(self.tr('点'))
+        self.label_h2 = QLabel(self.tr(':'))
         #label_h.setFont(QFont('宋体', all_font_size))
         hbox_r2.addWidget(self.label_h2)
         hbox_r2.addWidget(self.time_m)
-        self.label_m2 = QLabel(self.tr('分'))
+        self.label_m2 = QLabel(self.tr(''))
         #label_m.setFont(QFont('宋体', all_font_size))
         hbox_r2.addWidget(self.label_m2)
         hbox_r2.addStretch(10)
 
         hbox_r5 = QHBoxLayout()
-        self.check1 = QCheckBox(self.tr("在"), self) # xx 分时
+        self.check1 = QCheckBox(self.tr("At minute"), self)
         #self.check1.setFont(QFont('宋体', all_font_size))
-        self.check2 = QCheckBox(self.tr("每"), self)
+        self.check2 = QCheckBox(self.tr("Every"), self)
         #self.check2.setFont(QFont('宋体', all_font_size))
         self.check1.stateChanged.connect(self.uncheck)
         self.check2.stateChanged.connect(self.uncheck)
@@ -1412,7 +1412,7 @@ class Remindme(QWidget):
         #self.every_min.setFixedSize(int(38*size_factor), int(38*size_factor))
         self.every_min.setFixedSize(int(38), int(38))
 
-        self.label_em = QLabel(self.tr('分时'))
+        self.label_em = QLabel(self.tr('of each hour'))
         #label_em.setFont(QFont('宋体', all_font_size))
 
         self.interval_min = QLineEdit()
@@ -1425,7 +1425,7 @@ class Remindme(QWidget):
         #self.interval_min.setFixedSize(int(57*size_factor), int(38*size_factor))
         self.interval_min.setFixedSize(int(57), int(38))
 
-        self.label_im = QLabel(self.tr('分钟'))
+        self.label_im = QLabel(self.tr('minutes'))
         #label_im.setFont(QFont('宋体', all_font_size))
         hbox_r5.addWidget(self.check1)
         hbox_r5.addWidget(self.every_min)
@@ -1436,7 +1436,7 @@ class Remindme(QWidget):
         hbox_r5.addStretch(10)
 
         #hbox_r3 = QHBoxLayout()
-        self.button_confirm = QPushButton(self.tr("确定"))
+        self.button_confirm = QPushButton(self.tr("Save"))
         #self.button_confirm.setFont(QFont('宋体', all_font_size))
         self.button_confirm.clicked.connect(self.confirm)
         #self.button_cancel = QPushButton("关闭")
@@ -1450,7 +1450,7 @@ class Remindme(QWidget):
         self.e1.setFixedSize(int(250), int(38))
         #self.e1.setFixedSize(int(250*size_factor), int(38*size_factor))
         self.e1.setAlignment(Qt.AlignLeft)
-        self.e1.setFont(QFont(self.tr("宋体"),12))
+        self.e1.setFont(QFont("Arial",12))
         hbox_r4.addWidget(self.e1)
         hbox_r4.addWidget(self.button_confirm)
         hbox_r4.addStretch(1)
@@ -1470,7 +1470,7 @@ class Remindme(QWidget):
         vbox_r.addLayout(hbox_r5)
         vbox_r.addStretch(2)
 
-        self.label_r = QLabel(self.tr('提醒我：'))
+        self.label_r = QLabel(self.tr('Reminder text:'))
         #label_r.setFont(QFont('宋体', all_font_size))
         #label_r.setStyleSheet("color : grey")
         vbox_r.addWidget(self.label_r)
@@ -1494,8 +1494,8 @@ class Remindme(QWidget):
         #icon.setFixedSize(int(25*size_factor), int(25*size_factor))
         hbox_r6.addWidget(icon, Qt.AlignBottom | Qt.AlignLeft)
 
-        self.label_on = QLabel(self.tr('备忘录'))
-        self.label_on.setToolTip(self.tr('备忘录自动保存，\n下次打开时自动载入内容和提醒事项'))
+        self.label_on = QLabel(self.tr('Notes'))
+        self.label_on.setToolTip(self.tr('Notes are saved automatically and restored with your reminders next time you open the app.'))
         self.label_on.setStyleSheet(TomatoTitle)
         self.label_on.setFixedHeight(int(25)) #*size_factor))
         #label_on.setFont(QFont('宋体', all_font_size))
@@ -1518,7 +1518,7 @@ class Remindme(QWidget):
         self.e2 = QTextEdit()
         #self.e2.setMaxLength(14)
         self.e2.setAlignment(Qt.AlignLeft)
-        self.e2.setFont(QFont(self.tr("宋体"),12))
+        self.e2.setFont(QFont("Arial",12))
         self.e2.textChanged.connect(self.save_remindme)
         vbox_r2.addWidget(self.e2)
 
@@ -1588,18 +1588,20 @@ class Remindme(QWidget):
         f = open(os.path.join(configdir,'data/remindme.txt'),'r', encoding='UTF-8')
         texts = f.readlines()
         f.close()
+        repeat_modes = {
+            'at': 'repeat_point',
+            'every': 'repeat_interval',
+            '每到': 'repeat_point',
+            '每隔': 'repeat_interval',
+        }
         for line in texts:
-            line = line.rstrip('\n')
-            if line.startswith(self.tr('#重复')):
-                line = line.split(' ')
-                if line[-1] == '-':
-                    line += ['']
-
-                if line[1] == self.tr('每到'):
-                    self.confirm_remind.emit('repeat_point', 0, int(line[2]), line[-1])
-
-                elif line[2] == self.tr('每隔'):
-                    self.confirm_remind.emit('repeat_interval', 0, int(line[2]), line[-1])
+            parts = line.strip().split(maxsplit=3)
+            if len(parts) < 3 or parts[0] not in ('#repeat', '#重复'):
+                continue
+            mode = repeat_modes.get(parts[1])
+            if mode:
+                reminder_text = line.partition(' - ')[2]
+                self.confirm_remind.emit(mode, 0, int(parts[2]), reminder_text)
 
 
     # uncheck method
@@ -1686,11 +1688,11 @@ class Remindme(QWidget):
             remind_text = self.e1.text()
             current_text = self.e2.toPlainText()
             if self.check1.isChecked() and self.every_min.text() != '':
-                current_text += self.tr('#重复') + " " + f"{self.tr('每到')} {int(self.every_min.text())} {self.tr('分时')} - {remind_text}\n"
+                current_text += f"#repeat at {int(self.every_min.text())} of each hour - {remind_text}\n"
                 self.confirm_remind.emit('repeat_point', 0, int(self.every_min.text()), remind_text)
 
             elif self.check2.isChecked() and self.interval_min.text() != '':
-                current_text += self.tr('#重复') + " " + f"{self.tr('每隔')} {int(self.interval_min.text())} {self.tr('分钟')} - {remind_text}\n"
+                current_text += f"#repeat every {int(self.interval_min.text())} minutes - {remind_text}\n"
                 self.confirm_remind.emit('repeat_interval', 0, int(self.interval_min.text()), remind_text)
 
             self.e2.setPlainText(current_text)
@@ -1918,7 +1920,7 @@ QLabel {
     border: 0;
     background-color: #F5F4EF;
     font-size: 15px;
-    font-family: "黑体";
+    font-family: "Arial";
     width: 10px;
     height: 10px
 }
@@ -1945,7 +1947,7 @@ QPushButton {
     border-style: solid;
     padding: 7px;
     font: 16px;
-    font-family: "黑体";
+    font-family: "Arial";
     border-width: 3px;
     border-radius: 15px;
     border-color: #B39C86;
@@ -2145,7 +2147,7 @@ class Inventory(QWidget):
 
 
         hbox = QHBoxLayout()
-        self.button_confirm = QPushButton(self.tr("使用")) #, objectName='InvenButton')
+        self.button_confirm = QPushButton(self.tr("Use")) #, objectName='InvenButton')
         #self.button_confirm.setFont(QFont('黑体', all_font_size))
         self.button_confirm.clicked.connect(self.confirm)
         self.button_confirm.setDisabled(True)
@@ -2165,7 +2167,7 @@ class Inventory(QWidget):
                                                 background-color: lightgreen;\
                                             }")
         '''
-        self.button_cancel = QPushButton(self.tr("关闭")) #, objectName='InvenButton')
+        self.button_cancel = QPushButton(self.tr("Close")) #, objectName='InvenButton')
         #self.button_cancel.setStyleSheet(objectName='InvenButton')
 
         #self.button_cancel.setFont(QFont('黑体', all_font_size))
@@ -2177,7 +2179,7 @@ class Inventory(QWidget):
         hbox.addStretch()
 
         hbox_0 = QHBoxLayout()
-        self.title = QLabel(self.tr("宠物背包"))
+        self.title = QLabel(self.tr("Pet Inventory"))
         self.title.setStyleSheet(IvenTitle)
         icon = QLabel()
         icon.setStyleSheet(IvenTitle)
@@ -2324,14 +2326,14 @@ class Inventory(QWidget):
 
     def changeButton(self, clct_inuse=False):
         if self.selected_cell is None:
-            self.button_confirm.setText(self.tr('使用'))
+            self.button_confirm.setText(self.tr('Use'))
             self.button_confirm.setDisabled(True)
     
         else:
             if clct_inuse:
-                self.button_confirm.setText(self.tr('收回'))
+                self.button_confirm.setText(self.tr('Put Away'))
             else:
-                self.button_confirm.setText(self.tr('使用'))
+                self.button_confirm.setText(self.tr('Use'))
             self.button_confirm.setDisabled(False)
 
     def acc_withdrawed(self, item_name):
@@ -2351,7 +2353,12 @@ class Inventory(QWidget):
         if len(self.items_data.item_dict[item_name_selected]['pet_limit']) != 0:
             pet_list = self.items_data.item_dict[item_name_selected]['pet_limit']
             if settings.petname not in pet_list:
-                self.item_note.emit('system', f"[{item_name_selected}] {self.tr('仅能在切换至')}' [{'、'.join(pet_list)}] {self.tr('后使用哦')}")
+                display_name = self.items_data.get_display_name(item_name_selected)
+                self.item_note.emit(
+                    'system',
+                    f"[{display_name}] can only be used while one of these pets is active: "
+                    f"{', '.join(pet_list)}."
+                )
                 return
 
         if self.items_data.item_dict[item_name_selected]['item_type'] == 'consumable':
@@ -2380,7 +2387,8 @@ class Inventory(QWidget):
 
             # signal to act feed animation
             self.use_item_inven.emit(item_name_selected)
-            self.item_note.emit(item_name_selected, '[%s] -1'%item_name_selected)
+            display_name = self.items_data.get_display_name(item_name_selected)
+            self.item_note.emit(item_name_selected, f'[{display_name}] -1')
 
             # change button
             self.selected_cell = None
@@ -2480,7 +2488,8 @@ class Inventory(QWidget):
 
             self.layer_dict[item_type].addWidget(self.cells_dict[item_index], n_row, n_col)
 
-        self.item_note.emit(item_name, '[%s] +%s'%(item_name, n_items))
+        display_name = self.items_data.get_display_name(item_name)
+        self.item_note.emit(item_name, f'[{display_name}] +{n_items}')
         self.item_anim.emit(item_name)
         # change pet_data
         settings.pet_data.change_item(item_name, item_change=n_items)
@@ -2506,7 +2515,7 @@ class Inventory(QWidget):
             if self.items_data.item_dict[item]['item_type'] != 'consumable' and settings.pet_data.items.get(item, 0)>0:
                 all_probs.append(0)
             else:
-                all_probs.append((self.items_data.item_dict[item]['drop_rate'])*int(self.items_data.item_dict[item]['fv_lock']<=settings.pet_data.fv_lvl))
+                all_probs.append((self.items_data.item_dict[item]['drop_rate'])*int(self.items_data.item_dict[item]['fv_lock']<=settings.get_progression_level()))
         
         if sum(all_probs) != 0:
             all_probs = [i/sum(all_probs) for i in all_probs]
@@ -2515,7 +2524,7 @@ class Inventory(QWidget):
         self.all_probs = all_probs
 
     def compensate_rewards(self):
-        for fv_lvl in range(settings.pet_data.fv_lvl+1):
+        for fv_lvl in range(settings.get_progression_level()+1):
             for item_i in self.items_data.reward_dict.get(fv_lvl, []):
 
                 if self.items_data.item_dict[item_i]['item_type'] != 'consumable'\
@@ -2891,7 +2900,7 @@ QPushButton {
     border-style: solid;
     padding: 7px;
     font: 16px;
-    font-family: "黑体";
+    font-family: "Arial";
     text-align: left;
     border-width: 3px;
     border-radius: 10px;
@@ -2936,7 +2945,7 @@ QLabel {
     border: 0;
     background-color: #F5F4EF;
     font-size: 15px;
-    font-family: "黑体";
+    font-family: "Arial";
     width: 10px;
     height: 20px
 }
@@ -2974,7 +2983,7 @@ QPushButton:disabled {
 DialogueStyle = """
 QLabel {
     font-size: 16px;
-    font-family: "黑体";
+    font-family: "Arial";
     border: 0px
 }
 

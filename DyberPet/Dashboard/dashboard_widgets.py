@@ -309,7 +309,7 @@ class StatusCard(SimpleCardWidget):
         setFont(lvlLable, 13, QFont.Normal)
         lvlLable.adjustSize()
         lvlLable.setFixedSize(48, lvlLable.height())
-        self.lvl_badge = LevelBadge(settings.pet_data.fv_lvl, 18)
+        self.lvl_badge = LevelBadge(settings.get_progression_level(), 18)
         self.lvl_badge.setFixedSize(self.lvl_badge.width(), 20)
         h_box0.addWidget(lvlLable)
         #h_box0.addStretch(1)
@@ -386,7 +386,8 @@ class HPWidget(QWidget):
 
     def _init_widget(self):
 
-        hpLable = CaptionLabel(self.tr("Satiety"))
+        aec_mode = getattr(getattr(settings, 'pet_conf', None), 'aec_mode', False)
+        hpLable = CaptionLabel(self.tr("Health" if aec_mode else "Satiety"))
         setFont(hpLable, 13, QFont.Normal)
         hpLable.adjustSize()
         hpLable.setFixedSize(48, hpLable.height())
@@ -465,7 +466,8 @@ class FVWidget(QWidget):
 
     def _init_widget(self):
 
-        fvLable = CaptionLabel(self.tr("Favor"))
+        aec_mode = getattr(getattr(settings, 'pet_conf', None), 'aec_mode', False)
+        fvLable = CaptionLabel(self.tr("EXP" if aec_mode else "Favor"))
         setFont(fvLable, 13, QFont.Normal)
         fvLable.adjustSize()
         fvLable.setFixedSize(48, fvLable.height())
@@ -1128,6 +1130,11 @@ class itemTabWidget(QWidget):
         self.changeButton()
 
     def changeButton(self, item_inuse=False):
+        if self.selected_cell is not None:
+            cell = self.cells_dict[self.selected_cell]
+            layer = getattr(settings, 'equipped_item_layers', {}).get(cell.item_name)
+            if layer is not None:
+                cell.item_inuse = item_inuse = layer['visible']
         if self.selected_cell is None:
             self.set_confirm.emit(0, 0)
             #self.button_confirm.setText(self.tr('使用'))
@@ -1168,7 +1175,12 @@ class itemTabWidget(QWidget):
         if len(self.items_data.item_dict[item_name_selected]['pet_limit']) != 0:
             pet_list = self.items_data.item_dict[item_name_selected]['pet_limit']
             if settings.petname not in pet_list:
-                self.item_note.emit('system', f"[{item_name_selected}] {self.tr('仅能在切换至')}' [{'、'.join(pet_list)}] {self.tr('后使用哦')}")
+                display_name = self.items_data.get_display_name(item_name_selected)
+                self.item_note.emit(
+                    'system',
+                    f"[{display_name}] can only be used while one of these pets is active: "
+                    f"{', '.join(pet_list)}."
+                )
                 return
 
         # Check item type
@@ -1198,7 +1210,8 @@ class itemTabWidget(QWidget):
 
             # signal to act feed animation
             self.use_item_inven.emit(item_name_selected)
-            self.item_note.emit(item_name_selected, '[%s] -1'%item_name_selected)
+            display_name = self.items_data.get_display_name(item_name_selected)
+            self.item_note.emit(item_name_selected, f'[{display_name}] -1')
 
             # change button
             #self.selected_cell = None
@@ -1270,11 +1283,12 @@ class itemTabWidget(QWidget):
             self.check_num_cells()
             self.adjustSize()
 
+        display_name = self.items_data.get_display_name(item_name)
         if n_items > 0:
-            self.item_note.emit(item_name, '[%s] +%s'%(item_name, n_items))
+            self.item_note.emit(item_name, f'[{display_name}] +{n_items}')
             self.item_drop.emit(item_name)
         else:
-            self.item_note.emit(item_name, '[%s] %s'%(item_name, n_items))
+            self.item_note.emit(item_name, f'[{display_name}] {n_items}')
         # change pet_data
         settings.pet_data.change_item(item_name, item_change=n_items, item_index=item_index)
         self.item_num_changed.emit(item_name)
@@ -1289,7 +1303,8 @@ class itemTabWidget(QWidget):
             self.cells_dict[0].consumeItem()
             # signal to act feed animation
             self.use_item_inven.emit(item_name)
-            self.item_note.emit(item_name, '[%s] -1'%item_name)
+            display_name = self.items_data.get_display_name(item_name)
+            self.item_note.emit(item_name, f'[{display_name}] -1')
 
     def count(self):
         return len(self.cells_dict)
@@ -1515,6 +1530,7 @@ class ShopItemWidget(SimpleCardWidget):
         self.item_config = item_config
 
         self.item_name = item_config['name']
+        self.display_name = item_config.get('display_name', self.item_name)
         self.image = item_config['image']
         self.description = self.item_config['hint']
         self.cost = self.item_config['cost']
@@ -1551,10 +1567,10 @@ class ShopItemWidget(SimpleCardWidget):
         self._init_Card()
 
     def _getLockStat(self):
-        unlocked = settings.pet_data.fv_lvl >= self.fv_lock and settings.petname in self.pet_limit
+        unlocked = settings.get_progression_level() >= self.fv_lock and settings.petname in self.pet_limit
         if settings.petname not in self.pet_limit:
             self.locked_reason = 'PETLIMIT'
-        elif settings.pet_data.fv_lvl < self.fv_lock:
+        elif settings.get_progression_level() < self.fv_lock:
             self.locked_reason = 'FVLOCK'
         else:
             self.locked_reason = 'NONE'
@@ -1612,9 +1628,9 @@ class ShopItemWidget(SimpleCardWidget):
 
         # Item name
         if self.unlocked:
-            title = self.item_name
+            title = self.display_name
         else:
-            title = MaskPhrase(self.item_name)
+            title = MaskPhrase(self.display_name)
         self.nameLabel = CaptionLabel(title)
         setFont(self.nameLabel, 14, QFont.DemiBold)
         self.nameLabel.adjustSize()
@@ -1724,9 +1740,9 @@ class ShopItemWidget(SimpleCardWidget):
         
             # Item name
             if self.unlocked:
-                title = self.item_name
+                title = self.display_name
             else:
-                title = MaskPhrase(self.item_name)
+                title = MaskPhrase(self.display_name)
             self.nameLabel.setText(title)
             self.nameLabel.adjustSize()
 
@@ -1894,6 +1910,9 @@ class ShopView(QWidget):
                 break
 
     def _updateAllItemUI(self):
+        for item in self.items_data:
+            if item not in self._Items and self.items_data[item]['cost'] != -1:
+                self._addItemCard(max(self.cards, default=-1) + 1, item)
         for idx, card in self.cards.items():
             card._update_UI()
 
@@ -2057,9 +2076,11 @@ class ShopMessageBox(MessageBoxBase):
         self.option = option
         self.itemNum = 0
         if self.option == 'buy':
-            self.titleLabel = SubtitleLabel(self.tr('Buy') + f' [{item_name}]', self)
+            display_name = settings.items_data.get_display_name(item_name)
+            self.titleLabel = SubtitleLabel(self.tr('Buy') + f' [{display_name}]', self)
         elif self.option == 'sell':
-            self.titleLabel = SubtitleLabel(self.tr('Sell') + f' [{item_name}]', self)
+            display_name = settings.items_data.get_display_name(item_name)
+            self.titleLabel = SubtitleLabel(self.tr('Sell') + f' [{display_name}]', self)
         self.numSpinBox = SpinBox(self)
         self.numSpinBox.setMinimum(0)
         self.numSpinBox.setMaximum(maxNum)
@@ -2743,6 +2764,8 @@ Everytime you finish a 25min Pomodoro, you get coin rewarded"""),
 
     def reward_coins(self, nminutes):
         #print(f"Reward {nminutes} minutes")
+        if getattr(getattr(settings, 'pet_conf', None), 'aec_mode', False):
+            return
         if nminutes <= 0:
             return
         n_coins = nminutes*25

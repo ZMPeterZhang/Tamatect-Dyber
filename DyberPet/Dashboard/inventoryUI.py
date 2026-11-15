@@ -392,7 +392,7 @@ If there is any item in the first cell of the consumable item tab, this item wil
             if self.items_data.item_dict[item]['item_type'] != 'consumable' and settings.pet_data.items.get(item, (None,0))[1]>0:
                 all_probs.append(0)
             else:
-                all_probs.append((self.items_data.item_dict[item]['drop_rate'])*int(self.items_data.item_dict[item]['fv_lock']<=settings.pet_data.fv_lvl))
+                all_probs.append((self.items_data.item_dict[item]['drop_rate'])*int(self.items_data.item_dict[item]['fv_lock']<=settings.get_progression_level()))
         
         if sum(all_probs) != 0:
             all_probs = [i/sum(all_probs) for i in all_probs]
@@ -401,7 +401,7 @@ If there is any item in the first cell of the consumable item tab, this item wil
         self.all_probs = all_probs
 
     def compensate_rewards(self):
-        for fv_lvl in range(settings.pet_data.fv_lvl+1):
+        for fv_lvl in range(settings.get_progression_level()+1):
             for item_i in self.items_data.reward_dict.get(fv_lvl, []):
 
                 if self.items_data.item_dict[item_i]['item_type'] != 'consumable'\

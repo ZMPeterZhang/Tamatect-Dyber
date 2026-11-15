@@ -1,12 +1,14 @@
-<h1 align="center">
-  <img src="docs/app_icon.png" alt="DyberPet app icon" width="64" valign="middle"> 呆啵宠物  DyberPet<br>
-  <sup><sub>Put your favorite characters on your desktop — customize freely, with AI by your side.</sub></sup>
-</h1>
+<p align="center">
+  <img src="docs/tamatect-flyer.jpg" alt="Tamatect - Your Desktop Companion" width="720">
+</p>
+
+<h1 align="center">Tamatect - Your Desktop Companion</h1>
+<p align="center">A featured Tamatect experience in this customized DyberPet desktop-pet project.</p>
 
 <p align="center">
-  <b>🐾 Desktop Pet System</b>: animations, interactions, progression, tasks, shop features, and mini pets that make your characters truly live on your desktop.<br>
-  <b>✨ AI Assistant</b>: LLM-powered pet interactions for companion chat, to-do management, and daily assistance.<br>
-  <b>🧩 MOD Ecosystem</b>: freely extend and create characters, items, sounds, and mini pets.
+  <b>AEC-aware work states</b>: Tamatect responds to Rhino, Revit, and Rhino.Inside activity.<br>
+  <b>Accessories and food</b>: equip customizable items and shop for Tamatect's workday favorites.<br>
+  <b>Desktop companion care</b>: animations, health, progression, and physics-driven falling items.
 </p>
 
 <p align="center">
@@ -63,33 +65,27 @@ If you are interested in joining, feel free to [message me](https://space.bilibi
 
 ## Try the Demo
 ### Windows Users
-  Download the latest Release，double-click **``run_DyberPet.exe``**, that's it!
+  Download `Tamatect-Windows-x64.zip` from the latest GitHub Release, extract the **entire** archive to a writable folder, and run `Tamatect.exe`. Do not move the executable by itself; the archive also contains the app resources and runtime files. Save data is created in the `data` folder beside the executable.
 
-### Windows Terminal
-  Create a new **conda** environment 
+### Run from Source (Windows)
+  Install Python 3.9, then create an environment and install the pinned dependencies:
   ```
-  conda create --name Dyber_pyside python=3.9.18
-  conda activate Dyber_pyside
-  conda install -c conda-forge apscheduler
-  conda install -c conda-forge pynput
-  pip install PySide6-Fluent-Widgets==1.5.4 -i https://pypi.org/simple/
-  pip install pyside6==6.5.2
-  pip install tendo
+  py -3.9 -m venv .venv
+  .\.venv\Scripts\python.exe -m pip install --upgrade pip
+  .\.venv\Scripts\python.exe -m pip install -r requirements.txt
   ```
-  Download the repository，then run **``run_DyberPet.py``**.
+  Run the app from the repository root with `.\.venv\Scripts\python.exe run_DyberPet.py`.
   
-### MacOS Users
-  Create a new **conda** environment  
+### Debug in VS Code
+  Open the repository folder, select `.venv\Scripts\python.exe` as the Python interpreter, open `run_DyberPet.py`, and press **F5** using the Python Debugger. For startup errors, run the source command above in the integrated terminal and inspect the traceback. Runtime settings and save data are stored under `data/`.
+
+### Build a Windows Release
+  From the repository root, install the requirements above and run:
   ```
-  conda create --name Dyber_pyside python=3.9.18
-  conda activate Dyber_pyside
-  conda install -c conda-forge apscheduler
-  pip install pynput==1.7.6
-  pip install PySide6-Fluent-Widgets==1.5.4 -i https://pypi.org/simple/
-  pip install pyside6==6.5.2
-  pip install tendo
+  .\.venv\Scripts\python.exe -m PyInstaller --noconfirm --clean --windowed --name Tamatect --icon "..\Tamatect.ico" --contents-directory . --add-data "..\res;res" --collect-all qfluentwidgets --hidden-import pynput.mouse._win32 --hidden-import pynput.keyboard._win32 --specpath build --workpath build\pyinstaller run_DyberPet.py
+  Compress-Archive -Path .\dist\Tamatect\* -DestinationPath .\dist\Tamatect-Windows-x64.zip -Force
   ```
-  Download the repository，then run **``run_DyberPet.py``**.
+  Upload `dist\Tamatect-Windows-x64.zip` to the GitHub Release. It is an onedir bundle: publish the ZIP, not the EXE alone. The Windows build uses the icon in `Tamatect.ico`.
 
 
 

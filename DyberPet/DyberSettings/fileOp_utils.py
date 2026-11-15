@@ -51,9 +51,9 @@ def checkFolderMD5(source_folder, target_folder):
         if os.path.isfile(targetFile): # 若文件存在
             targetMD5 = checkFileMD5(targetFile=targetFile) # 获取存档文件的MD5
             if sourceMD5 == targetMD5: # 如果两个MD5一致，则检查通过
-                print('检查通过')
+                print('Save verification passed')
             else:
-                print('检测到MD5不一致')
+                print('Save verification failed: MD5 mismatch')
                 return 2
         else:
             return 1

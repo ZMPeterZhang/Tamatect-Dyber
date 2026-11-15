@@ -49,12 +49,13 @@ class Animation_worker(QObject):
         super(Animation_worker, self).__init__(parent)
         self.pet_conf = pet_conf
         self.hp_cut_off = sys_hp_tiers #[0,50,80,100]
-        self.current_status = [settings.pet_data.hp_tier,settings.pet_data.fv_lvl] #self._cal_status_type()
+        self.current_status = [settings.pet_data.hp_tier, settings.get_progression_level()]
         self.nonDefault_prob_list = sys_nonDefault_prob #[1, 0.05, 0.125, 0.25]
         self.nonDefault_prob = self.nonDefault_prob_list[self.current_status[0]]
         self.act_cmlt_prob = self._cal_prob(self.current_status)
         self.is_killed = False
         self.is_paused = False
+        self.aec_state = 'idle'
 
 
     def run(self):
@@ -84,7 +85,7 @@ class Animation_worker(QObject):
         self.is_paused = False
 
     def update_prob(self):
-        self.current_status = [settings.pet_data.hp_tier,settings.pet_data.fv_lvl] #self._cal_status_type()
+        self.current_status = [settings.pet_data.hp_tier, settings.get_progression_level()]
         self.nonDefault_prob = self.nonDefault_prob_list[self.current_status[0]]
         self.act_cmlt_prob = self._cal_prob(self.current_status)
 
@@ -148,7 +149,9 @@ class Animation_worker(QObject):
         self.nonDefault_prob = self.nonDefault_prob_list[self.current_status[0]]
         #print('animation module is aware of the fv lvl change! %i'%fv_lvl)
 
-    
+    def set_aec_state(self, state):
+        self.aec_state = state
+
 
     def random_act(self) -> None:
         """
@@ -159,8 +162,18 @@ class Animation_worker(QObject):
         accs = None
         # If HP type is not starving, this condition also makes sure only starving animation is played
 
+        # AEC work and sleep states take priority over ordinary idle actions.
+        if (self.pet_conf.aec_mode
+                and settings.pet_data.hp <= 0
+                and 'dead' in self.pet_conf.aec_actions):
+            acts = [self.pet_conf.aec_actions['dead']]
+
+        # AEC work and sleep states take priority over ordinary idle actions.
+        elif self.pet_conf.aec_mode and self.aec_state in self.pet_conf.aec_actions:
+            acts = [self.pet_conf.aec_actions[self.aec_state]]
+
         # If under focus timer, play focus animation
-        if settings.focus_timer_on and self.pet_conf.focus:
+        elif settings.focus_timer_on and self.pet_conf.focus:
             acts = [self.pet_conf.focus]
 
         # If there is only 1 animation, select the default animation mode
@@ -203,7 +216,8 @@ class Animation_worker(QObject):
                     'anchor': self.pet_conf.accessory_act[act_name]['anchor'],
                     'follow_main': self.pet_conf.accessory_act[act_name].get('follow_main', False),
                     'speed_follow_main': self.pet_conf.accessory_act[act_name].get('speed_follow_main', 5),
-                    'follow_mouse': self.pet_conf.accessory_act[act_name].get('follow_mouse', False)}
+                    'follow_mouse': self.pet_conf.accessory_act[act_name].get('follow_mouse', False),
+                    'above_main': self.pet_conf.accessory_act[act_name].get('above_main', True)}
         elif act_type == 'customized':
             acts = self.pet_conf.custom_act[act_name]['act_list']
             if self.pet_conf.custom_act[act_name]['acc_list']:
@@ -271,6 +285,7 @@ class Animation_worker(QObject):
                 #global current_img, previous_img
                 settings.previous_img = settings.current_img
                 settings.current_img = img
+                settings.current_img_mirrored = False
                 settings.previous_anchor = settings.current_anchor
                 settings.current_anchor =  [int(i * settings.tunable_scale) for i in act.anchor]
                 #print('anim', settings.previous_anchor, settings.current_anchor)
@@ -505,6 +520,7 @@ class Interaction_worker(QObject):
                 settings.playid = 0
             settings.previous_img = settings.current_img
             settings.current_img = img
+            settings.current_img_mirrored = False
             settings.previous_anchor = settings.current_anchor
             settings.current_anchor = [int(i * settings.tunable_scale) for i in act.anchor]
 
@@ -546,6 +562,7 @@ class Interaction_worker(QObject):
                 transform = QTransform()
                 transform.scale(-1, 1)
                 settings.current_img = settings.current_img.transformed(transform) #.mirrored(True, False)
+                settings.current_img_mirrored = True
                 settings.current_anchor = [int(i * settings.tunable_scale) for i in act.anchor]
                 settings.current_anchor = [-settings.current_anchor[0], settings.current_anchor[1]]
 
@@ -692,6 +709,7 @@ class Interaction_worker(QObject):
                     transform = QTransform()
                     transform.scale(-1, 1)
                     settings.current_img = settings.current_img.transformed(transform)
+                    settings.current_img_mirrored = True
                     settings.current_anchor = [int(i * settings.tunable_scale) for i in acts.anchor]
                     settings.current_anchor = [-settings.current_anchor[0], settings.current_anchor[1]]
 
@@ -701,17 +719,37 @@ class Interaction_worker(QObject):
                 self.drop()
 
         else:
-            #self.stop_interact()
-            #self.interact = 'animat' #None
-            #self.act_name = 'onfloor' #None
-            self.start_interact('animat', 'onfloor')
-            #settings.playid = 0
-            #settings.act_id = 0
+            self.start_interact('onfloor')
 
         #self.sig_repaint_inter.emit()
 
 
         #elif set_fall==0 and onfloor==0:
+
+    def onfloor(self, act_name=None):
+        acts = self.pet_conf.on_floor
+        if not acts.images:
+            self.stop_interact()
+            return
+
+        self.img_from_act(acts)
+
+        if settings.fall_right:
+            settings.previous_img = settings.current_img
+            transform = QTransform()
+            transform.scale(-1, 1)
+            settings.current_img = settings.current_img.transformed(transform)
+            settings.current_img_mirrored = True
+            settings.current_anchor = [
+                -int(acts.anchor[0] * settings.tunable_scale),
+                int(acts.anchor[1] * settings.tunable_scale),
+            ]
+
+        if settings.previous_img != settings.current_img or settings.previous_anchor != settings.current_anchor:
+            self.sig_setimg_inter.emit()
+
+        if settings.playid == 0:
+            self.stop_interact()
 
     def drop(self):
         #掉落
@@ -759,16 +797,11 @@ class Interaction_worker(QObject):
             self.sig_move_inter.emit(plus_x, plus_y)
 
     def use_item(self, item):
-        # 宠物进行 三个等级的喂食动画
-        if item in self.pet_conf.item_favorite:
-            #print('animation 1 here!')
-            self.start_interact('animat','feed_1')
-        elif item in self.pet_conf.item_dislike:
-            #print('animation 3 here!')
-            self.start_interact('animat','feed_3')
-        else:
-            #print('animation 2 here!')
-            self.start_interact('animat','feed_2')
+        pet_conf = getattr(self, 'pet_conf', None)
+        feed_action = getattr(pet_conf, 'feed_action', None)
+        if feed_action not in getattr(pet_conf, 'act_name', []):
+            feed_action = 'default'
+        self.start_interact('animat', feed_action)
 
         '''
         self.interact = 'animat' #None
@@ -827,6 +860,7 @@ class Scheduler_worker(QObject):
     sig_settime_sche = Signal(str, int, name='sig_settime_sche')
     sig_addItem_sche = Signal(int, name='sig_addItem_sche')
     sig_setup_bubble = Signal(dict, name='sig_setup_bubble')
+    sig_aec_event = Signal(str, name='sig_aec_event')
 
 
     def __init__(self, parent=None):
@@ -849,6 +883,7 @@ class Scheduler_worker(QObject):
         self.focus_time = 0
         self.tm_interval = 25
         self.tm_break = 5
+        self.tomato_is_resting = False
 
         ''' Customized Pomodoro function deleted from v0.3.7
         pomodoro_conf = os.path.join(basedir, 'res/icons/Pomodoro.json')
@@ -1039,6 +1074,8 @@ class Scheduler_worker(QObject):
         #finished = False
 
         if task_text == 'tomato_start':
+            self.tomato_is_resting = False
+            self.sig_aec_event.emit('work_start')
             self.tomato_timeleft = self.tm_interval #25
             self.scheduler.add_job(self.change_tomato, interval.IntervalTrigger(minutes=1), id='tomato_timer', replace_existing=True)
             self.sig_settime_sche.emit('tomato_start', self.tomato_timeleft)
@@ -1046,12 +1083,17 @@ class Scheduler_worker(QObject):
             text_toshow = self.pomodoro_text['note_start']
 
         elif task_text == 'tomato_first':
+            self.tomato_is_resting = False
+            self.sig_aec_event.emit('work_start')
             self.scheduler.add_job(self.change_tomato, interval.IntervalTrigger(minutes=1), id='tomato_timer', replace_existing=True)
             self.tomato_timeleft = self.tm_interval #25
             self.sig_settime_sche.emit('tomato_start', self.tomato_timeleft)
             text_toshow = "%s%s"%(int(self.n_tomato_now), self.pomodoro_text['note_first'])
 
         elif task_text == 'tomato_end':
+            self.sig_aec_event.emit('work_minute')
+            self.sig_aec_event.emit('work_end')
+            self.tomato_is_resting = True
             self.tomato_timeleft = self.tm_break #5
             self.scheduler.add_job(self.change_tomato, interval.IntervalTrigger(minutes=1), id='tomato_timer', replace_existing=True)
             self.sig_settime_sche.emit('tomato_rest', self.tomato_timeleft)
@@ -1060,6 +1102,9 @@ class Scheduler_worker(QObject):
             #finished = True
 
         elif task_text == 'tomato_last':
+            self.sig_aec_event.emit('work_minute')
+            self.sig_aec_event.emit('work_end')
+            self.tomato_is_resting = False
             try:
                 self.scheduler.remove_job('tomato_timer')
             except:
@@ -1073,6 +1118,8 @@ class Scheduler_worker(QObject):
             #finished = True
 
         elif task_text == 'tomato_cancel':
+            self.sig_aec_event.emit('work_end')
+            self.tomato_is_resting = False
             self.n_tomato_now=None
             for iidd in self.tomato_list:
                 self.scheduler.remove_job(iidd)
@@ -1126,12 +1173,14 @@ class Scheduler_worker(QObject):
         self.sig_setstat_sche.emit('fv', 1)
 
     def change_tomato(self):
+        self.sig_aec_event.emit('rest_minute' if self.tomato_is_resting else 'work_minute')
         self.tomato_timeleft += -1
         if self.tomato_timeleft <= 1:
             self.scheduler.remove_job('tomato_timer')
         self.sig_settime_sche.emit('tomato', self.tomato_timeleft)
 
     def change_focus(self):
+        self.sig_aec_event.emit('work_minute')
         self.focus_time += -1
         if self.focus_time <= 1:
             self.scheduler.remove_job('focus_timer')
@@ -1209,6 +1258,7 @@ class Scheduler_worker(QObject):
             text_toshow = "不行！还有专注任务在进行哦~"
         '''
         if task_text == 'focus_start':
+            self.sig_aec_event.emit('work_start')
             if self.focus_time > 1:
                 self.scheduler.add_job(self.change_focus, interval.IntervalTrigger(minutes=1), id='focus_timer', replace_existing=True)
             #elif self.focus_time < 1:
@@ -1219,6 +1269,8 @@ class Scheduler_worker(QObject):
 
 
         elif task_text == 'focus_end':
+            self.sig_aec_event.emit('work_minute')
+            self.sig_aec_event.emit('work_end')
             self.focus_time = 0
             try:
                 self.scheduler.remove_job('focus_timer')
@@ -1232,6 +1284,7 @@ class Scheduler_worker(QObject):
 
 
         elif task_text == 'focus_cancel':
+            self.sig_aec_event.emit('work_end')
             self.focus_time = 0
             try:
                 self.scheduler.remove_job('focus_timer')

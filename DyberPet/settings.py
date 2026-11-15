@@ -5,7 +5,14 @@ from sys import platform
 from collections import defaultdict
 
 from PySide6.QtGui import QImage, QPixmap
-from DyberPet.conf import PetData, TaskData, ActData, ItemData
+from DyberPet.conf import (
+    PetData,
+    TaskData,
+    ActData,
+    ItemData,
+    migrate_role_name,
+    migrate_role_mapping,
+)
 from PySide6 import QtCore
 
 if platform == 'win32':
@@ -27,6 +34,14 @@ else:
     CONFIGDIR = configdir
 
 DEFAULT_THEME_COL = "#009faa"
+DEFAULT_PET = "Tamatect"
+DEFAULT_SCALE = 0.5
+DEFAULT_LANGUAGE = "en_US"
+
+
+def get_progression_level():
+    return pet_data.fv_lvl
+
 
 HELP_URL = "https://github.com/ChaozhongLiu/DyberPet/issues"
 PROJECT_URL = "https://github.com/ChaozhongLiu/DyberPet"
@@ -74,6 +89,11 @@ LINK_PERMIT = {"BiliBili":"https://space.bilibili.com/",
                "爱发电":"https://afdian.net/a/",
                "TikTok":"https://www.tiktok.com/",
                "YouTube":"https://www.youtube.com/"}
+LINK_DISPLAY_NAMES = {
+    "微博": "Weibo",
+    "抖音": "Douyin",
+    "爱发电": "Afdian",
+}
 
 ITEM_BGC = {'consumable': '#EFEBDF',
             'collection': '#e1eaf4',
@@ -175,7 +195,7 @@ def init():
     init_settings()
     global default_pet
     if default_pet not in pets:
-        default_pet = pets[0]
+        default_pet = DEFAULT_PET if DEFAULT_PET in pets else pets[0]
     else:
         pets.remove(default_pet)
         pets.sort()
@@ -243,9 +263,14 @@ def init_settings():
         gravity = data_params['gravity']
         #tunable_scale = data_params['tunable_scale']
         volume = data_params['volume']
-        language_code = data_params.get('language_code', QtCore.QLocale().name())
+        language_code = data_params.get('language_code', DEFAULT_LANGUAGE)
         on_top_hint = data_params.get('on_top_hint', True)
-        default_pet = data_params.get('default_pet', pets[0])
+        default_pet = migrate_role_name(
+            data_params.get(
+                'default_pet',
+                DEFAULT_PET if DEFAULT_PET in pets else pets[0],
+            )
+        )
         defaultAct = data_params.get('defaultAct', {})
         themeColor = data_params.get('themeColor', None)
 
@@ -254,6 +279,7 @@ def init_settings():
             defaultAct = {}
         elif type(defaultAct) == str:
             defaultAct = {}
+        defaultAct = migrate_role_mapping(defaultAct)
 
         for pet in pets:
             defaultAct[pet] = defaultAct.get(pet, None)
@@ -272,9 +298,9 @@ def init_settings():
         # v0.5.0 update ======================================
         # First time open v0.5.0, get the original 
         # tunable_scale as all default
-        tunable_scale = data_params.get('tunable_scale', 1.0)
+        tunable_scale = data_params.get('tunable_scale', DEFAULT_SCALE)
         # v0.5.0 tunable_scales are specified for each character
-        scale_dict_tmp = data_params.get('scale_dict', {})
+        scale_dict_tmp = migrate_role_mapping(data_params.get('scale_dict', {}))
         scale_dict = {}
         for pet in pets:
             pet_scale = scale_dict_tmp.get(pet, tunable_scale)
@@ -282,7 +308,7 @@ def init_settings():
             try:
                 pet_scale = float(pet_scale)
             except:
-                pet_scale = 1.0
+                pet_scale = DEFAULT_SCALE
             pet_scale = max( 0, min(5, pet_scale) )
             scale_dict[pet] = pet_scale
         tunable_scale = scale_dict[default_pet]
@@ -290,6 +316,9 @@ def init_settings():
         # mini-pet scale settings
         minipet_scale = data_params.get('minipet_scale', defaultdict(dict))
         minipet_scale = check_dict_datatype(minipet_scale, dict, {})
+        migrate_role_mapping(minipet_scale)
+        for pet_scales in minipet_scale.values():
+            migrate_role_mapping(pet_scales)
         minipet_scale = defaultdict(dict, minipet_scale)
         for minipet, sdict in minipet_scale.items():
             minipet_scale[minipet] = check_dict_datatype(sdict, float, 1.0)
@@ -300,7 +329,8 @@ def init_settings():
         #=====================================================
 
         # v0.6.1 User Tag (how pet will call the user)
-        usertag_dict_tmp = data_params.get('usertag_dict', {})
+        usertag_dict_tmp = migrate_role_mapping(
+            data_params.get('usertag_dict', {}))
         usertag_dict = {}
         for pet in pets:
             usertag = usertag_dict_tmp.get(pet, '')
@@ -318,17 +348,17 @@ def init_settings():
         fixdragspeedx, fixdragspeedy = 1.0, 1.0
         gravity = 0.1
         volume = 0.5
-        language_code = QtCore.QLocale().name()
+        language_code = DEFAULT_LANGUAGE
         on_top_hint = True
-        default_pet = pets[0]
+        default_pet = DEFAULT_PET if DEFAULT_PET in pets else pets[0]
         defaultAct = {}
         themeColor = None
         for pet in pets:
             defaultAct[pet] = defaultAct.get(pet, None)
         scale_dict = {}
         for pet in pets:
-            scale_dict[pet] = 1.0
-        tunable_scale = 1.0
+            scale_dict[pet] = DEFAULT_SCALE
+        tunable_scale = DEFAULT_SCALE
         minipet_scale = defaultdict(dict)
         toaster_on = True
         bubble_on = True
@@ -360,6 +390,7 @@ def save_settings():
                'auto_lock':auto_lock
                }
 
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
     with open(file_path, 'w', encoding='utf-8') as f:
         json.dump(data_js, f, ensure_ascii=False, indent=4)
 

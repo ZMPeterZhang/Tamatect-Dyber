@@ -1,6 +1,73 @@
 {
+  "Coffee": {
+    "name": "Coffee",
+    "image": "coffee.png",
+    "effect_HP": 4,
+    "effect_FV": 2,
+    "drop_rate": 0,
+    "fv_lock": 0,
+    "cost": 40,
+    "pet_limit": ["Tamatect"],
+    "description": "A small boost for a long workday."
+  },
+  "Coke": {
+    "name": "Coke",
+    "image": "coke.png",
+    "effect_HP": 7,
+    "effect_FV": 2,
+    "drop_rate": 0,
+    "fv_lock": 0,
+    "cost": 60,
+    "pet_limit": ["Tamatect"],
+    "description": "A fizzy, refreshing drink."
+  },
+  "Energy Drink": {
+    "name": "Energy Drink",
+    "image": "energy_drink.png",
+    "effect_HP": 7,
+    "effect_FV": 2,
+    "drop_rate": 0,
+    "fv_lock": 0,
+    "cost": 60,
+    "pet_limit": ["Tamatect"],
+    "description": "A zesty lime energy drink."
+  },
+  "Onigiri": {
+    "name": "Onigiri",
+    "image": "onigiri.png",
+    "effect_HP": 10,
+    "effect_FV": 3,
+    "drop_rate": 0,
+    "fv_lock": 0,
+    "cost": 80,
+    "pet_limit": ["Tamatect"],
+    "description": "A satisfying rice-ball lunch."
+  },
+  "Pizza": {
+    "name": "Pizza",
+    "image": "pizza.png",
+    "effect_HP": 15,
+    "effect_FV": 4,
+    "drop_rate": 0,
+    "fv_lock": 0,
+    "cost": 120,
+    "pet_limit": ["Tamatect"],
+    "description": "A hearty meal for a hard day's work."
+  },
+  "Gyudon": {
+    "name": "Gyudon",
+    "image": "gyudon.png",
+    "effect_HP": 15,
+    "effect_FV": 4,
+    "drop_rate": 0,
+    "fv_lock": 0,
+    "cost": 120,
+    "pet_limit": ["Tamatect"],
+    "description": "A hearty bowl of beef and rice."
+  },
   "汉堡": {
-    "name": "汉堡",
+    "name": "Hamburger",
+    "display_name": "Hamburger",
     "image": "15_burger.png",
     "effect_HP": 10,
     "effect_FV": 3,
@@ -9,12 +76,13 @@
     "buff":{
       "effect": "HP_stop",
       "expiration": 300,
-      "description":"使用后5分钟内活力满满，饱食度不会下降"
+      "description":"Keeps hunger from decreasing for 5 minutes."
     },
-    "description": "喵当劳招牌 - 牛肉芝士汉堡"
+    "description": "MeowDonald's signature beef cheeseburger."
   },
   "薯条" : {
-    "name": "薯条",
+    "name": "French Fries",
+    "display_name": "French Fries",
     "image": "44_frenchfries.png",
     "effect_HP": 8,
     "effect_FV": 2,
@@ -25,29 +93,42 @@
       "interval": 30,
       "value": 5,
       "expiration": 120,
-      "description":"使用后每30秒获得5金币，持续2分钟"
+      "description":"Earns 5 coins every 30 seconds for 2 minutes."
     },
-    "description": "薯条就是薯条"
+    "description": "Crispy, golden fries."
   },
   "果酱" : {
-    "name": "果酱",
+    "name": "Jam",
+    "display_name": "Jam",
     "image": "61_jam.png",
     "effect_HP": 8,
     "effect_FV": 2,
     "drop_rate": 0.5,
     "fv_lock": 1,
-    "description": "果酱就是果酱"
+    "description": "A sweet fruit spread."
   },
   "炸鸡": {
-    "name": "炸鸡",
+    "name": "Fried Chicken",
+    "display_name": "Fried Chicken",
     "image": "85_roastedchicken.png",
     "effect_HP": 15,
     "effect_FV": 5,
     "drop_rate": 0.5,
     "fv_lock": 2,
-    "description": "炸鸡就是炸鸡"
+    "description": "Crispy fried chicken."
+  },
+  "AEC Hard Hat": {
+    "image": "aec_hard_hat.png",
+    "type": "collection",
+    "cost": -1,
+    "drop_rate": 0,
+    "fv_lock": 0,
+    "fv_reward": [0],
+    "pet_limit": ["Tamatect"],
+    "description": "A test hard hat for Tamatect. Use it to equip the hat overlay."
   },
   "coin": {
+    "display_name": "Dyber Coin",
     "name":{
       "zh_CN":"啵币",
       "en_US":"Dyber Coin"

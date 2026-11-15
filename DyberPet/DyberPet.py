@@ -1,19 +1,24 @@
 import sys
 from sys import platform
+import logging
 import time
+import json
 import math
+import re
 import types
 import random
 import inspect
+import subprocess
 import webbrowser
 from typing import List
 from pathlib import Path
 import pynput.mouse as mouse
 
 from PySide6.QtWidgets import *
-from PySide6.QtCore import Qt, QTimer, QObject, QPoint, QEvent, QElapsedTimer
+from PySide6.QtCore import Qt, QTimer, QObject, QPoint, QEvent, QElapsedTimer, QUrl
 from PySide6.QtCore import QObject, QThread, Signal, QRectF, QRect, QSize, QPropertyAnimation, QAbstractAnimation
 from PySide6.QtGui import QImage, QPixmap, QIcon, QCursor, QPainter, QFont, QFontMetrics, QAction, QBrush, QPen, QColor, QFontDatabase, QPainterPath, QRegion, QIntValidator, QDoubleValidator
+from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 
 from qfluentwidgets import CaptionLabel, setFont, Action #,RoundMenu
 from qfluentwidgets import FluentIcon as FIF
@@ -23,9 +28,19 @@ from .custom_roundmenu import RoundMenu
 from DyberPet.conf import *
 from DyberPet.utils import *
 from DyberPet.modules import *
-from DyberPet.Accessory import MouseMoveManager
+from DyberPet.Accessory import ItemLayerFall, MouseMoveManager
 from DyberPet.custom_widgets import RoundBarBase, LevelBadge
 from DyberPet.bubbleManager import BubbleManager
+from DyberPet.aec import (
+    AECEventCatalog,
+    AECProgression,
+    WORK_MINUTE_SECONDS,
+    WORK_POLL_INTERVAL_MS,
+    get_work_badge_label,
+    get_work_display_state,
+    get_running_work_apps,
+    resolve_work_profiles,
+)
 
 # initialize settings
 import DyberPet.settings as settings
@@ -45,6 +60,7 @@ vf.close()
 status_margin = int(3)
 statbar_h = int(20)
 icons_wh = 20
+GROUND_DETECTION_OFFSET = 15
 
 # system config
 sys_hp_tiers = settings.HP_TIERS 
@@ -375,6 +391,7 @@ class PetWidget(QWidget):
     compensate_rewards = Signal(name="compensate_rewards")
     refresh_bag = Signal(name="refresh_bag")
     addCoins = Signal(int, name='addCoins')
+    aec_add_coins = Signal(int, str, bool, name='aec_add_coins')
     autofeed = Signal(name='autofeed')
 
     stopAllThread = Signal(name='stopAllThread')
@@ -402,6 +419,8 @@ class PetWidget(QWidget):
 
         self.image = None
         self.tray = None
+        self.item_layers = {}
+        self.item_layer_falls = {}
 
         # 鼠标拖拽初始属性
         self.is_follow_mouse = False
@@ -424,6 +443,27 @@ class PetWidget(QWidget):
 
         self._init_ui()
         self._init_widget()
+        self.aec_progression = None
+        self.aec_working = False
+        self.aec_sleeping = False
+        self.aec_event_catalog = AECEventCatalog([])
+        self.aec_event_handlers = {}
+        self.aec_event_player = None
+        self.aec_event_audio_output = None
+        self.aec_event_work_minutes = 0
+        self.aec_work_mode = 'auto'
+        self.aec_work_mode_actions = {}
+        self.aec_detected_apps = frozenset()
+        self.aec_focus_working = False
+        self.aec_work_elapsed = 0.0
+        self.aec_last_poll = None
+        self.aec_display_work_profile = None
+        self.aec_sleep_timer = QTimer(self)
+        self.aec_sleep_timer.setInterval(60000)
+        self.aec_sleep_timer.timeout.connect(self._aec_sleep_tick)
+        self.aec_process_timer = QTimer(self)
+        self.aec_process_timer.setInterval(WORK_POLL_INTERVAL_MS)
+        self.aec_process_timer.timeout.connect(self._poll_aec_work)
         self.init_conf(self.curr_pet_name) # if curr_pet_name else self.pets[0])
 
         #self._set_menu(pets)
@@ -488,6 +528,9 @@ class PetWidget(QWidget):
             # 左键绑定拖拽
             self.is_follow_mouse = True
             self.mouse_drag_pos = event.globalPos() - self.pos()
+            if any(fall.is_active() for fall in self.item_layer_falls.values()):
+                self._stop_item_layer_falls()
+                self._render_pet_frame()
             
             if settings.onfloor == 0:
             # Left press activates Drag interaction
@@ -604,11 +647,13 @@ class PetWidget(QWidget):
                         settings.fall_right = True
                     else:
                         settings.fall_right = False
+                    self._start_item_layer_fall()
 
                 else:
                     settings.draging=0
                     self._move_customized(0,0)
                     settings.current_img = self.pet_conf.default.images[0]
+                    settings.current_img_mirrored = False
                     self.set_img()
                     self.workers['Animation'].resume()
             self.mouse_moving = False
@@ -665,6 +710,22 @@ class PetWidget(QWidget):
         self.label.setAlignment(Qt.AlignBottom | Qt.AlignHCenter)
         self.label.installEventFilter(self)
         #self.label.setStyleSheet("border : 2px solid blue")
+
+        self.aec_work_badge = QLabel(self)
+        self.aec_work_badge.setAlignment(Qt.AlignCenter)
+        self.aec_work_badge.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self.aec_work_badge.setStyleSheet(
+            'QLabel {'
+            'background-color: rgba(32, 38, 45, 220);'
+            'color: white;'
+            'border: 1px solid rgba(255, 255, 255, 190);'
+            'border-radius: 10px;'
+            'padding: 3px 10px;'
+            'font-size: 12px;'
+            'font-weight: 600;'
+            '}'
+        )
+        self.aec_work_badge.hide()
 
         # system animations
         self.sys_src = _load_all_pic('sys')
@@ -917,7 +978,7 @@ class PetWidget(QWidget):
         setFont(lvlLable, 13, QFont.Normal)
         lvlLable.adjustSize()
         lvlLable.setFixedSize(43, lvlLable.height())
-        self.lvl_badge = LevelBadge(settings.pet_data.fv_lvl)
+        self.lvl_badge = LevelBadge(settings.get_progression_level())
         h_box0.addWidget(lvlLable)
         #h_box0.addStretch(1)
         h_box0.addWidget(self.lvl_badge)
@@ -930,7 +991,7 @@ class PetWidget(QWidget):
         h_box1.setContentsMargins(0,0,0,0) #status_margin,0,0)
         h_box1.setSpacing(5)
         h_box1.setAlignment(Qt.AlignCenter) #AlignBottom | Qt.AlignHCenter)
-        hpLable = CaptionLabel(self.tr("Satiety"))
+        hpLable = CaptionLabel(self.tr("Health" if self.pet_conf.aec_mode else "Satiety"))
         setFont(hpLable, 13, QFont.Normal)
         hpLable.adjustSize()
         hpLable.setFixedSize(43, hpLable.height())
@@ -951,12 +1012,16 @@ class PetWidget(QWidget):
         h_box1.addStretch(1)
 
         # favor status
-        fvWidget = QWidget()
+        old_fv_widget = getattr(self, 'fvWidget', None)
+        if old_fv_widget is not None:
+            old_fv_widget.deleteLater()
+        fvWidget = QWidget(self)
+        self.fvWidget = fvWidget
         h_box2 = QHBoxLayout(fvWidget)
         h_box2.setContentsMargins(0,0,0,0) #status_margin,0,0)
         h_box2.setSpacing(5)
         h_box2.setAlignment(Qt.AlignCenter) #Qt.AlignBottom | Qt.AlignHCenter)
-        fvLable = CaptionLabel(self.tr("Favor"))
+        fvLable = CaptionLabel(self.tr("EXP" if self.pet_conf.aec_mode else "Favor"))
         setFont(fvLable, 13, QFont.Normal)
         fvLable.adjustSize()
         fvLable.setFixedSize(43, fvLable.height())
@@ -1005,6 +1070,57 @@ class PetWidget(QWidget):
         #self.StatMenu.addWidget(self.statLabel, selectable=False)
         self.StatMenu.addWidget(lvlWidget, selectable=False)
         self.StatMenu.addWidget(self.statusWidget, selectable=False)
+        if self.pet_conf.aec_mode:
+            self.aec_sleep_action = Action(
+                QIcon(os.path.join(basedir, 'res/icons/moon.svg')),
+                self.tr('Sleep'),
+                triggered=self._toggle_aec_sleep)
+            self.StatMenu.addAction(self.aec_sleep_action)
+
+            self.aec_work_mode_menu = RoundMenu(self.tr('Work Mode'))
+            self.aec_work_mode_actions = {}
+            for mode, label in (
+                    ('auto', 'Auto-detect'),
+                    ('rhino', 'Manual Rhino'),
+                    ('revit', 'Manual Revit')):
+                action = Action(self.tr(label), self.aec_work_mode_menu)
+                action.setCheckable(True)
+                action.triggered.connect(
+                    lambda checked=False, selected_mode=mode:
+                    self._set_aec_work_mode(selected_mode))
+                self.aec_work_mode_menu.addAction(action)
+                self.aec_work_mode_actions[mode] = action
+            self._sync_aec_work_mode_actions()
+            self.StatMenu.addMenu(self.aec_work_mode_menu)
+
+            self.aec_events_menu = RoundMenu(self.tr('AEC Events'))
+            for event in self.aec_event_catalog:
+                action = Action(self.tr(event['name']), self.aec_events_menu)
+                action.triggered.connect(
+                    lambda checked=False, event_id=event['id']:
+                    self._trigger_aec_special_event(event_id))
+                self.aec_events_menu.addAction(action)
+            self.StatMenu.addMenu(self.aec_events_menu)
+
+            self.aec_debug_menu = RoundMenu(self.tr('AEC Debug'))
+            debug_actions = [
+                ('Health +10', 'debug_health_up'),
+                ('Health -10', 'debug_health_down'),
+                ('Level +1', 'debug_level_up'),
+                ('Level -1', 'debug_level_down'),
+                ('Coins +1,000', 'debug_coins'),
+            ]
+            for label, event in debug_actions:
+                action = Action(self.tr(label), self.aec_debug_menu)
+                action.triggered.connect(
+                    lambda checked=False, event_name=event:
+                    self._handle_aec_event(event_name))
+                self.aec_debug_menu.addAction(action)
+            from .debug_shop_items import add_shop_item
+            add_item = Action(self.tr('Add Shop Item…'), self.aec_debug_menu)
+            add_item.triggered.connect(lambda: add_shop_item(self))
+            self.aec_debug_menu.addAction(add_item)
+            self.StatMenu.addMenu(self.aec_debug_menu)
         #self.StatMenu.addWidget(fvbar, selectable=False)
         self.StatMenu.addSeparator()
 
@@ -1019,6 +1135,7 @@ class PetWidget(QWidget):
         self.StatMenu.addMenu(self.act_menu)
         self.StatMenu.addMenu(self.companion_menu)
         self.StatMenu.addMenu(self.change_menu)
+        self.StatMenu.addAction(Action(FIF.EDIT, self.tr("Edit Items"), triggered=self._edit_item))
         self.StatMenu.addSeparator()
         
         self.StatMenu.addActions([
@@ -1030,6 +1147,87 @@ class PetWidget(QWidget):
     #     statusText = self.tr("Status: ") + f"{settings.TIER_NAMES[hp_tier]}"
     #     self.statLabel.setText(statusText)
 
+
+    def _edit_item(self):
+        from .item_layout_editor import ItemLayoutEditor
+
+        if getattr(self, 'item_layout_editor', None) is not None:
+            self.item_layout_editor.raise_()
+            return
+        dialog = ItemLayoutEditor(self)
+        self.item_layout_editor = dialog
+        dialog.finished.connect(self._close_item_layout_editor)
+        dialog.show()
+
+    def _close_item_layout_editor(self):
+        dialog = self.item_layout_editor
+        self.item_layout_editor = None
+        dialog.deleteLater()
+
+    def _item_bounds(self, layer):
+        bounds = QRect(layer['bounds'])
+        if layer['flipped']:
+            bounds.moveLeft(layer['image'].width() - bounds.x() - bounds.width())
+        return bounds
+
+    def _maximum_item_percent(self, layer):
+        bounds = layer['bounds']
+        return max(1, min(500, int(100 * min(
+            self.item_canvas.width() / bounds.width(),
+            self.item_canvas.height() / bounds.height(),
+        ))))
+
+    def _bounded_item_offset(self, layer, offset):
+        bounds, size = self._item_bounds(layer), layer['scale']
+        x, y = offset
+        return (
+            max(-bounds.x() * size, min(x, self.item_canvas.width() - (bounds.x() + bounds.width()) * size)),
+            max(-bounds.y() * size, min(y, self.item_canvas.height() - (bounds.y() + bounds.height()) * size)),
+        )
+
+    def _write_item_layer(self, layer):
+        path = layer['path']
+        temporary = path.with_suffix('.tmp')
+        image_path = path.with_suffix('.png')
+        temporary_image = image_path.with_suffix(image_path.suffix + '.tmp')
+        x, y = layer['offset']
+        config = dict(layer['config'], offset_x=x, offset_y=y, scale=layer['scale'],
+                      visible=layer['visible'], flipped=layer['flipped'])
+        created_image = False
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if not image_path.exists():
+                if not layer['image'].save(str(temporary_image), 'PNG'):
+                    raise OSError('Could not save the item artwork.')
+                temporary_image.replace(image_path)
+                created_image = True
+            temporary.write_text(json.dumps(config, indent=2) + chr(10), encoding='utf-8')
+            temporary.replace(path)
+        except OSError:
+            if temporary_image.exists():
+                temporary_image.unlink()
+            if created_image and image_path.exists():
+                image_path.unlink()
+            if temporary.exists():
+                temporary.unlink()
+            QMessageBox.warning(self, self.tr("Edit Items"), self.tr("Could not save the item position."))
+            return False
+        layer['config'] = config
+        return True
+
+    def _item_slot_limit(self):
+        return 2 + max(0, settings.get_progression_level())
+
+    def _can_edit_layer(self, layer):
+        item = layer['config'].get('inventory_item')
+        return not item or settings.pet_data.items.get(item, (None, 0))[1] > 0
+
+    def _placed_item_count(self):
+        return sum(
+            bool(layer['visible'])
+            for layer in self.item_layers.values()
+            if layer['config'].get('inventory_item') and self._can_edit_layer(layer)
+        )
 
     def _show_Staus_menu(self):
         """
@@ -1073,7 +1271,7 @@ class PetWidget(QWidget):
         #self.workers['Animation'].fvchange(settings.pet_data.fv_lvl)
 
         # Animation config data update
-        settings.act_data._pet_refreshed(settings.pet_data.fv_lvl)
+        settings.act_data._pet_refreshed(settings.get_progression_level())
         self.refresh_acts.emit()
 
         # cancel default animation if any
@@ -1093,6 +1291,7 @@ class PetWidget(QWidget):
         self._set_menu(self.pets)
         self._set_Statusmenu()
         self._set_tray()
+        self._sync_aec_work_badge()
 
         # restart animation and interaction
         self.runAnimation()
@@ -1160,17 +1359,46 @@ class PetWidget(QWidget):
         :param pet_name: 宠物名称
         :return:
         """
+        self._stop_item_layer_falls()
+        self.aec_process_timer.stop()
+        self._stop_aec_sleep()
+        self.aec_event_work_minutes = 0
+        self.aec_working = False
+        self.aec_work_mode = 'auto'
+        self.aec_work_mode_actions = {}
+        self.aec_detected_apps = frozenset()
+        self.aec_focus_working = False
+        self.aec_work_elapsed = 0.0
+        self.aec_last_poll = None
+        self.aec_display_work_profile = None
         self.curr_pet_name = pet_name
         settings.petname = pet_name
+        self.item_layers = {}
+        self._load_item_layers(pet_name)
+        settings.equipped_item_layers = {
+            layer['config']['inventory_item']: layer
+            for layer in self.item_layers.values()
+            if layer['config'].get('inventory_item')
+        }
         settings.tunable_scale = settings.scale_dict.get(pet_name, 1.0)
         pic_dict = _load_all_pic(pet_name)
         self.pet_conf = PetConfig.init_config(self.curr_pet_name, pic_dict) #settings.size_factor)
         
         self.margin_value = 0 #0.1 * max(self.pet_conf.width, self.pet_conf.height) # 用于将widgets调整到合适的大小
         # Add customized animation
-        settings.act_data.init_actData(pet_name, settings.pet_data.hp_tier, settings.pet_data.fv_lvl)
-        self._load_custom_anim()
         settings.pet_conf = self.pet_conf
+        if self.pet_conf.aec_mode:
+            settings.pet_data.migrate_aec_progression()
+            self.aec_progression = AECProgression(settings.pet_data)
+            self.aec_event_catalog = self._load_aec_event_catalog()
+            self.aec_last_poll = time.monotonic()
+            self.aec_process_timer.start()
+        else:
+            self.aec_progression = None
+            self.aec_event_catalog = AECEventCatalog([])
+            self.aec_process_timer.stop()
+        settings.act_data.init_actData(pet_name, settings.pet_data.hp_tier, settings.get_progression_level())
+        self._load_custom_anim()
 
         # Update coin name and image according to the pet config
         if self.pet_conf.coin_config:
@@ -1270,18 +1498,19 @@ class PetWidget(QWidget):
 
         settings.previous_img = settings.current_img
         settings.current_img = self.pet_conf.default.images[0] #list(pic_dict.values())[0]
+        settings.current_img_mirrored = False
         settings.previous_anchor = [0, 0] #settings.current_anchor
         settings.current_anchor = [int(i*settings.tunable_scale) for i in self.pet_conf.default.anchor]
         self.set_img()
+        self._load_legacy_accessory_layers()
         self.border = self.pet_conf.width/2
 
         
         # 初始位置
         #screen_geo = QDesktopWidget().availableGeometry() #QDesktopWidget().screenGeometry()
         screen_width = self.screen_width #screen_geo.width()
-        work_height = self.screen_height #screen_geo.height()
         x = self.current_screen.topLeft().x() + int(screen_width*0.8) - self.width()//2
-        y = self.current_screen.topLeft().y() + work_height - self.height()
+        y = self.floor_pos
         self.move(x,y)
         if settings.previous_anchor != settings.current_anchor:
             self.move(self.pos().x() - settings.previous_anchor[0] + settings.current_anchor[0],
@@ -1325,21 +1554,152 @@ class PetWidget(QWidget):
 
         # 初始位置
         #screen_geo = QDesktopWidget().availableGeometry() #QDesktopWidget().screenGeometry()
-        screen_width = self.screen_width #screen_geo.width()
-        work_height = self.screen_height #screen_geo.height()
         x = self.pos().x() + settings.current_anchor[0]
+        self._update_floor_pos()
         if settings.set_fall:
-            y = self.current_screen.topLeft().y() + work_height-self.height()+settings.current_anchor[1]
+            y = self.floor_pos + settings.current_anchor[1]
         else:
             y = self.pos().y() + settings.current_anchor[1]
-        # make sure that for all stand png, png bottom is the ground
-        #self.floor_pos = work_height-self.height()
-        self.floor_pos = self.current_screen.topLeft().y() + work_height - self.height()
         self.move(x,y)
         self.move_sig.emit(self.pos().x()+self.width()//2, self.pos().y()+self.height())
 
         if setImg:
             self.set_img()
+
+    def _update_floor_pos(self):
+        self.floor_pos = (
+            self.current_screen.topLeft().y()
+            + self.screen_height
+            - self.height()
+            + GROUND_DETECTION_OFFSET
+        )
+
+    def _load_item_layers(self, pet_name):
+        from pathlib import Path
+
+        self.item_layers = {}
+        folder = Path(basedir) / 'res' / 'role' / pet_name
+        layer_folder = folder / 'layers'
+        if not layer_folder.is_dir():
+            return
+        with (folder / 'pet_conf.json').open(encoding='utf-8-sig') as handle:
+            character = json.load(handle)
+        self.item_canvas = QSize(character['width'], character['height'])
+        for path in sorted(layer_folder.glob('*.json')):
+            try:
+                config = json.loads(path.read_text(encoding='utf-8-sig'))
+                image = QPixmap(str(path.with_suffix('.png')))
+                offset = (float(config.get('offset_x', 0)), float(config.get('offset_y', 0)))
+                scale = min(5.0, max(0.01, float(config.get('scale', 1.0))))
+            except (OSError, ValueError, AttributeError, TypeError) as error:
+                logging.warning("Skipping invalid item layer %s: %s", path, error)
+                continue
+            if image.isNull():
+                logging.warning("Skipping item layer with missing or invalid artwork: %s", path)
+                continue
+            bounds = QRegion(image.mask()).boundingRect()
+            if bounds.isEmpty():
+                logging.warning("Skipping item layer with empty artwork: %s", path)
+                continue
+            layer = {
+                'name': config.get('name') or path.stem.replace('_', ' ').title(),
+                'image': image,
+                'offset': offset,
+                'path': path,
+                'config': config,
+                'scale': scale,
+                'visible': config.get('visible', True),
+                'bounds': bounds,
+                'flipped': bool(config.get('flipped', False)),
+                'flipped_image': QPixmap.fromImage(image.toImage().mirrored(True, False)),
+            }
+            layer['scale'] = min(scale, self._maximum_item_percent(layer) / 100)
+            layer['offset'] = self._bounded_item_offset(layer, offset)
+            self.item_layers[path.stem] = layer
+        self.item_layers = dict(sorted(
+            self.item_layers.items(),
+            key=lambda pair: pair[1]['config'].get('draw_order', 0),
+        ))
+
+    def _load_legacy_accessory_layers(self):
+        existing_items = {
+            layer['config'].get('inventory_item')
+            for layer in self.item_layers.values()
+        }
+        layer_folder = Path(basedir) / 'res' / 'role' / self.curr_pet_name / 'layers'
+        draw_order = max(
+            (layer['config'].get('draw_order', 0) for layer in self.item_layers.values()),
+            default=-1,
+        ) + 1
+        for item_name, accessory in self.pet_conf.accessory_act.items():
+            item_config = settings.items_data.item_dict.get(item_name)
+            if (item_name in existing_items
+                    or item_config is None
+                    or item_config['item_type'] != 'collection'
+                    or accessory.get('acc_type') != 'equip'
+                    or accessory.get('act_list')):
+                continue
+            accessories = accessory.get('acc_list', [])
+            if len(accessories) != 1:
+                continue
+            frames = getattr(accessories[0], 'images', [])
+            if len(frames) != 1:
+                continue
+            image = frames[0]
+            if image.isNull():
+                continue
+            bounds = QRegion(image.mask()).boundingRect()
+            if bounds.isEmpty():
+                continue
+            slug = re.sub(r'[^a-z0-9]+', '_', item_name.lower()).strip('_')
+            path = layer_folder / f'{slug}_accessory.json'
+            anchor = accessory.get('anchor', [0, 0])
+            accessory_origin = self.label.mapFrom(
+                self,
+                QPoint(
+                    self.width() // 2 + round(anchor[0] * settings.tunable_scale),
+                    self.height() + round(anchor[1] * settings.tunable_scale),
+                ),
+            )
+            scale_x = self.label.width() / self.item_canvas.width()
+            scale_y = self.label.height() / self.item_canvas.height()
+            offset = (accessory_origin.x() / scale_x, accessory_origin.y() / scale_y)
+            config = {
+                'name': item_name,
+                'inventory_item': item_name,
+                'offset_x': offset[0],
+                'offset_y': offset[1],
+                'scale': 1,
+                'visible': False,
+                'flipped': False,
+                'draw_order': draw_order,
+            }
+            layer = {
+                'name': item_name,
+                'image': image,
+                'offset': offset,
+                'path': path,
+                'config': config,
+                'scale': 1,
+                'visible': False,
+                'bounds': bounds,
+                'flipped': False,
+                'flipped_image': QPixmap.fromImage(image.toImage().mirrored(True, False)),
+            }
+            layer['scale'] = min(1.0, self._maximum_item_percent(layer) / 100)
+            layer['offset'] = self._bounded_item_offset(layer, layer['offset'])
+            self.item_layers[path.stem] = layer
+            existing_items.add(item_name)
+            draw_order += 1
+        self.item_layers = dict(sorted(
+            self.item_layers.items(),
+            key=lambda pair: pair[1]['config'].get('draw_order', 0),
+        ))
+        settings.equipped_item_layers = {
+            layer['config']['inventory_item']: layer
+            for layer in self.item_layers.values()
+            if layer['config'].get('inventory_item')
+        }
 
     def set_img(self): #, img: QImage) -> None:
         """
@@ -1358,13 +1718,86 @@ class PetWidget(QWidget):
         # HighDPI-compatible scaling solution
         # self.label.setScaledContents(True)
         self.label.setFixedSize(width_tmp, height_tmp)
-        self.label.setPixmap(settings.current_img) #QPixmap.fromImage(settings.current_img))
+        self._render_pet_frame()
+
+    def _start_item_layer_fall(self):
+        falling_layers = {
+            layer_id: layer for layer_id, layer in self.item_layers.items()
+            if layer['visible'] and self._can_edit_layer(layer)
+        }
+        if not falling_layers:
+            return
+        self._stop_item_layer_falls()
+        self.item_layer_falls = {}
+        for layer_id in falling_layers:
+            fall = ItemLayerFall(self)
+            fall.settled.connect(self._render_pet_frame)
+            self.item_layer_falls[layer_id] = fall
+            fall.start()
+        self._render_pet_frame()
+
+    def _stop_item_layer_falls(self):
+        for fall in self.item_layer_falls.values():
+            fall.stop()
+
+    def _render_pet_frame(self):
+        image = settings.current_img
+        layers = self.item_layers
+        mirrored = getattr(settings, 'current_img_mirrored', False)
+        active_falls = {
+            layer_id: fall for layer_id, fall in self.item_layer_falls.items()
+            if fall.is_active() and layer_id in layers
+        }
+        if active_falls:
+            image = self._compose_item_layers(image, {}, target_size=self.label.size())
+            for layer_id, fall in active_falls.items():
+                overlay = QPixmap(image.size())
+                overlay.fill(Qt.transparent)
+                item_layer = self._compose_item_layers(
+                    overlay,
+                    {layer_id: layers[layer_id]},
+                    mirrored,
+                )
+                fall.set_frame(item_layer)
+        else:
+            image = self._compose_item_layers(image, layers, mirrored, self.label.size())
+        self.label.setPixmap(image)
+        self.image = image
         # previous scaling soluton
         #self.label.resize(width_tmp, height_tmp)
         #self.label.setPixmap(QPixmap.fromImage(settings.current_img.scaled(width_tmp, height_tmp,
         #                                                                 aspectMode=Qt.KeepAspectRatio,
         #                                                                 mode=Qt.SmoothTransformation)))
-        self.image = settings.current_img
+
+    def _compose_item_layers(self, image, layers, mirrored=False, target_size=None):
+        if image.isNull():
+            return image
+        if layers and mirrored:
+            image = QPixmap.fromImage(image.toImage().mirrored(True, False))
+        if target_size is not None and target_size.isValid() and image.size() != target_size:
+            image = image.scaled(target_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        if layers:
+            image = image.copy()
+            scale_x = image.width() / self.item_canvas.width()
+            scale_y = image.height() / self.item_canvas.height()
+            painter = QPainter(image)
+            painter.setRenderHint(QPainter.SmoothPixmapTransform)
+            for layer in layers.values():
+                if not layer['visible'] or not self._can_edit_layer(layer):
+                    continue
+                item = layer['flipped_image'] if layer['flipped'] else layer['image']
+                x, y = layer['offset']
+                painter.drawPixmap(
+                    QRectF(x * scale_x, y * scale_y,
+                           item.width() * scale_x * layer['scale'],
+                           item.height() * scale_y * layer['scale']),
+                    item,
+                    QRectF(item.rect()),
+                )
+            painter.end()
+            if mirrored:
+                image = QPixmap.fromImage(image.toImage().mirrored(True, False))
+        return image
 
     def _compensate_rewards(self):
         self.compensate_rewards.emit()
@@ -1394,6 +1827,10 @@ class PetWidget(QWidget):
             return
         if status not in ['hp','fv']:
             return
+        if status == 'hp' and from_mod == 'Scheduler' and self.pet_conf.aec_mode:
+            return
+        if status == 'fv' and from_mod == 'Scheduler' and self.pet_conf.aec_mode:
+            return
         elif status == 'hp':
             
             diff = self.pet_hp.updateValue(change_value, from_mod)
@@ -1411,9 +1848,9 @@ class PetWidget(QWidget):
             else:
                 return
             if status == 'hp':
-                message = self.tr('Satiety') + " " f'{diff}'
+                message = self.tr('Health' if self.pet_conf.aec_mode else 'Satiety') + " " f'{diff}'
             else:
-                message = self.tr('Favorability') + " " f'{diff}' #'好感度 %s'%diff
+                message = self.tr('EXP' if self.pet_conf.aec_mode else 'Favorability') + " " f'{diff}'
             self.register_notification('status_%s'%status, message)
         
         # Periodically triggered events
@@ -1428,9 +1865,307 @@ class PetWidget(QWidget):
 
     def _hp_updated(self, hp):
         self.hp_updated.emit(hp)
+        if (getattr(self, 'pet_conf', None)
+                and self.pet_conf.aec_mode
+                and hasattr(self, 'aec_working')):
+            self._update_aec_work_state()
 
     def _fv_updated(self, fv, fv_lvl):
         self.fv_updated.emit(fv, fv_lvl)
+
+    def _stop_aec_sleep(self):
+        was_sleeping = self.aec_sleeping
+        self.aec_sleep_timer.stop()
+        self.aec_sleeping = False
+        if self.aec_progression:
+            self.aec_progression.reset_rest()
+        if hasattr(self, 'aec_sleep_action'):
+            self.aec_sleep_action.setText(self.tr('Sleep'))
+        if was_sleeping:
+            self._set_aec_animation_state('idle')
+
+    def _toggle_aec_sleep(self):
+        if not self.pet_conf.aec_mode:
+            return
+        if self.aec_sleeping:
+            self._handle_aec_event('sleep_wake')
+            return
+        if self.aec_working:
+            return
+        self._handle_aec_event('sleep_start')
+
+    def _aec_sleep_tick(self):
+        self._handle_aec_event('sleep_minute')
+
+    def _sync_aec_work_mode_actions(self):
+        for mode, action in self.aec_work_mode_actions.items():
+            action.setChecked(mode == self.aec_work_mode)
+
+    def _set_aec_work_mode(self, mode):
+        if mode not in ('auto', 'rhino', 'revit') or not self.aec_progression:
+            return
+        self.aec_work_mode = mode
+        self.aec_work_elapsed = 0.0
+        self._sync_aec_work_mode_actions()
+        self._update_aec_work_state()
+
+    def _get_aec_work_profiles(self):
+        return resolve_work_profiles(
+            self.aec_work_mode,
+            self.aec_detected_apps,
+            self.aec_focus_working,
+        )
+
+    def _update_aec_work_state(self):
+        profiles, _ = self._get_aec_work_profiles()
+        working = bool(profiles) or self.aec_focus_working
+        if working and self.aec_sleeping:
+            self._stop_aec_sleep()
+        self.aec_display_work_profile = get_work_display_state(
+            self.aec_work_mode,
+            self.aec_detected_apps,
+            self.aec_focus_working,
+        )
+        if working != self.aec_working:
+            self.aec_working = working
+        animation_state = (
+            'dead' if self.pet_conf.aec_mode and settings.pet_data.hp <= 0 else
+            'sleep' if self.aec_sleeping else
+            'work' if working else 'idle')
+        self._set_aec_animation_state(animation_state)
+        self._sync_aec_work_badge()
+
+    def _sync_aec_work_badge(self):
+        if not self.pet_conf.aec_mode:
+            self.aec_work_badge.hide()
+            return
+
+        label = get_work_badge_label(
+            self.aec_work_mode,
+            self.aec_display_work_profile,
+            self.aec_focus_working,
+            self.aec_detected_apps,
+        )
+        if label is None:
+            self.aec_work_badge.hide()
+            return
+
+        self.aec_work_badge.setText(self.tr(label))
+        self.aec_work_badge.adjustSize()
+        self.aec_work_badge.move(
+            (self.width() - self.aec_work_badge.width()) // 2, 2)
+        self.aec_work_badge.show()
+        self.aec_work_badge.raise_()
+
+    def _poll_aec_work(self):
+        if not self.aec_progression:
+            self.aec_process_timer.stop()
+            return
+
+        now = time.monotonic()
+        elapsed = 0.0
+        if self.aec_last_poll is not None:
+            elapsed = max(0.0, now - self.aec_last_poll)
+        self.aec_last_poll = now
+
+        try:
+            self.aec_detected_apps = get_running_work_apps()
+        except (OSError, subprocess.SubprocessError) as error:
+            logging.getLogger(__name__).warning(
+                'AEC process detection failed: %s', error)
+            self._update_aec_work_state()
+            return
+
+        profiles, detected = self._get_aec_work_profiles()
+        self._update_aec_work_state()
+        if not profiles or self.aec_focus_working:
+            self.aec_work_elapsed = 0.0
+            return
+
+        elapsed = min(elapsed, WORK_POLL_INTERVAL_MS / 1000.0 * 2)
+        self.aec_work_elapsed += elapsed
+        while self.aec_work_elapsed >= WORK_MINUTE_SECONDS:
+            self.aec_work_elapsed -= WORK_MINUTE_SECONDS
+            self._account_aec_work_minute(profiles, detected)
+
+    def _account_aec_work_minute(self, profiles=None, detected=None):
+        if not self.aec_progression:
+            return
+        if profiles is None or detected is None:
+            profiles, detected = self._get_aec_work_profiles()
+        if not profiles:
+            return
+
+        health_change, exp_gain, coin_gain = self.aec_progression.work_minute(
+            profiles, detected)
+        if exp_gain:
+            self._change_status('fv', exp_gain, from_mod='AEC', send_note=True)
+        if health_change:
+            self._change_status(
+                'hp', health_change, from_mod='AEC', send_note=True)
+        if coin_gain:
+            self.aec_add_coins.emit(
+                coin_gain, self.tr('AEC work reward'), False)
+        self.aec_event_work_minutes += 1
+        for event_id in self.aec_event_catalog.roll_periodic_events(
+                self.aec_event_work_minutes):
+            self._trigger_aec_special_event(event_id)
+
+    def _set_aec_animation_state(self, state):
+        if 'Animation' in self.workers:
+            self.workers['Animation'].set_aec_state(state)
+
+    def _load_aec_event_catalog(self):
+        path = os.path.join(
+            basedir, 'res', 'role', self.curr_pet_name, 'event_conf.json')
+        if not os.path.isfile(path):
+            return AECEventCatalog([])
+
+        with open(path, 'r', encoding='UTF-8') as event_file:
+            event_config = json.load(event_file)
+        catalog = AECEventCatalog(event_config.get('events', []))
+        for event in catalog:
+            animation = event.get('animation')
+            if animation and animation not in self.pet_conf.act_name:
+                raise ValueError(
+                    f"AEC event {event['id']!r} references unknown action {animation!r}")
+            sound = event.get('sound')
+            if sound:
+                sound_path = os.path.join(
+                    basedir, 'res', 'role', self.curr_pet_name, 'sound', sound)
+                if not os.path.isfile(sound_path):
+                    raise FileNotFoundError(
+                        f"AEC event {event['id']!r} references missing sound {sound!r}")
+        return catalog
+
+    def register_aec_event_handler(self, handler_name, handler):
+        if not isinstance(handler_name, str) or not handler_name:
+            raise ValueError('AEC event handler names must be non-empty strings')
+        if not callable(handler):
+            raise TypeError('AEC event handlers must be callable')
+        self.aec_event_handlers[handler_name] = handler
+
+    def _trigger_aec_special_event(self, event_id):
+        if not self.pet_conf.aec_mode:
+            return
+
+        event = self.aec_event_catalog[event_id]
+        for stat, change in event.get('effects', {}).items():
+            self._change_status(stat, change, from_mod='AEC', send_note=True)
+
+        handler_name = event.get('handler')
+        if handler_name:
+            handler = self.aec_event_handlers.get(handler_name)
+            if handler is None:
+                raise KeyError(f"No AEC event handler registered for {handler_name!r}")
+            handler(self, event)
+
+        if event.get('message'):
+            self.register_notification('status_aec', self.tr(event['message']))
+        if event.get('animation') and settings.pet_data.hp > 0:
+            self._show_act(event['animation'])
+        if event.get('sound'):
+            self._play_aec_event_sound(event['sound'])
+
+    def _play_aec_event_sound(self, sound_name):
+        sound_path = os.path.join(
+            basedir, 'res', 'role', self.curr_pet_name, 'sound', sound_name)
+        if not os.path.isfile(sound_path):
+            raise FileNotFoundError(f"AEC event sound does not exist: {sound_path}")
+
+        if self.aec_event_player is None:
+            self.aec_event_audio_output = QAudioOutput(self)
+            self.aec_event_player = QMediaPlayer(self)
+            self.aec_event_player.setAudioOutput(self.aec_event_audio_output)
+            self.aec_event_player.errorOccurred.connect(
+                self._log_aec_event_audio_error)
+
+        self.aec_event_player.stop()
+        self.aec_event_audio_output.setVolume(settings.volume)
+        self.aec_event_player.setSource(QUrl.fromLocalFile(sound_path))
+        self.aec_event_player.play()
+
+    @staticmethod
+    def _log_aec_event_audio_error(error, error_string):
+        if error_string:
+            logging.getLogger(__name__).error(
+                "AEC event audio playback failed: %s", error_string)
+
+    def _handle_aec_event(self, event):
+        if not self.aec_progression:
+            return
+        if event == 'work_start':
+            self._stop_aec_sleep()
+            self.aec_focus_working = True
+            self.aec_work_elapsed = 0.0
+            self.aec_progression.reset_rest()
+            self._update_aec_work_state()
+            return
+        if event == 'work_end':
+            self.aec_focus_working = False
+            self.aec_work_elapsed = 0.0
+            self._update_aec_work_state()
+            return
+        if event == 'sleep_start':
+            if self.aec_working:
+                return
+            self.aec_sleeping = True
+            self.aec_progression.reset_rest()
+            self.aec_sleep_timer.start()
+            if hasattr(self, 'aec_sleep_action'):
+                self.aec_sleep_action.setText(self.tr('Wake up'))
+            self._set_aec_animation_state('sleep')
+            return
+        if event == 'sleep_wake':
+            self._stop_aec_sleep()
+            self._update_aec_work_state()
+            return
+        if event == 'debug_health_up':
+            self._change_status('hp', 10, from_mod='AEC', send_note=True)
+            return
+        if event == 'debug_health_down':
+            self._change_status('hp', -10, from_mod='AEC', send_note=True)
+            return
+        if event == 'debug_level_up':
+            self._debug_adjust_aec_level(1)
+            return
+        if event == 'debug_level_down':
+            self._debug_adjust_aec_level(-1)
+            return
+        if event == 'debug_coins':
+            self.aec_add_coins.emit(
+                1000, self.tr('AEC Debug reward'), True)
+            return
+        if event == 'work_minute':
+            self._stop_aec_sleep()
+            self._account_aec_work_minute()
+            return
+        elif event == 'rest_minute':
+            return
+        elif event == 'sleep_minute':
+            if not self.aec_sleeping:
+                return
+            health_change = self.aec_progression.rest_minute()
+        else:
+            return
+
+        if health_change:
+            self._change_status('hp', health_change, from_mod='AEC', send_note=True)
+
+    def _debug_adjust_aec_level(self, direction):
+        current_level = settings.pet_data.fv_lvl
+        new_level = min(
+            max(current_level + direction, 0), len(settings.LVL_BAR) - 1)
+        if new_level == current_level:
+            return
+
+        fv = min(settings.pet_data.fv, settings.LVL_BAR[new_level])
+        settings.pet_data.change_fv(fv, new_level)
+        self.pet_fv.init_FV(fv, new_level)
+        self.fvchange(new_level, reward_items=False, notify=False)
+        self.refresh_bag.emit()
+        self.register_notification(
+            'status_aec', self.tr('Debug level set to {0}').format(new_level))
 
 
     def _change_time(self, status, timeleft):
@@ -1487,6 +2222,23 @@ class PetWidget(QWidget):
             self.focus_time.setFormat('')
 
     def use_item(self, item_name):
+        for layer in self.item_layers.values():
+            if layer['config'].get('inventory_item') == item_name:
+                if self._can_edit_layer(layer):
+                    visible = layer['visible']
+                    if not visible and self._placed_item_count() >= self._item_slot_limit():
+                        QMessageBox.information(
+                            self,
+                            self.tr("Item slots full"),
+                            self.tr("Withdraw a placed item to free a slot, or level up to unlock another slot."),
+                        )
+                        return
+                    layer['visible'] = not visible
+                    if not self._write_item_layer(layer):
+                        layer['visible'] = visible
+                    self.set_img()
+                return
+
         # Check if it's pet-required item
         if item_name == settings.required_item:
             reward_factor = settings.FACTOR_FEED_REQ
@@ -1853,17 +2605,26 @@ class PetWidget(QWidget):
         self.hptier_changed_main_note.emit(hp_tier, direction)
         #self._update_statusTitle(hp_tier)
 
-    def fvchange(self, fv_lvl):
+    def fvchange(self, fv_lvl, reward_items=True, notify=True):
+        previous_level = self.lvl_badge.level
         if fv_lvl == -1:
-            self.fvlvl_changed_main_note.emit(fv_lvl)
+            if notify:
+                self.fvlvl_changed_main_note.emit(fv_lvl)
+            fv_lvl = settings.pet_data.fv_lvl
         else:
             self.workers['Animation'].fvchange(fv_lvl)
-            self.fvlvl_changed_main_note.emit(fv_lvl)
-            self.fvlvl_changed_main_inve.emit(fv_lvl)
-            self._update_fvlock()
-            self.lvl_badge.set_level(fv_lvl)
+            if notify:
+                self.fvlvl_changed_main_note.emit(fv_lvl)
+            if reward_items:
+                self.fvlvl_changed_main_inve.emit(fv_lvl)
+        self._update_fvlock()
+        self.lvl_badge.set_level(fv_lvl)
+        editor = getattr(self, 'item_layout_editor', None)
+        if editor is not None:
+            editor.render()
         self.refresh_acts.emit()
-        self.bubble_manager.trigger_bubble(bb_type="fv_lvlup")
+        if notify and fv_lvl > previous_level:
+            self.bubble_manager.trigger_bubble(bb_type="fv_lvlup")
 
     def runInteraction(self):
         # Create thread for Interaction Module
@@ -1901,6 +2662,7 @@ class PetWidget(QWidget):
         self.workers['Scheduler'].sig_settime_sche.connect(self._change_time)
         self.workers['Scheduler'].sig_addItem_sche.connect(self.add_item)
         self.workers['Scheduler'].sig_setup_bubble.connect(self._process_greeting_mssg)
+        self.workers['Scheduler'].sig_aec_event.connect(self._handle_aec_event)
 
         # Start the thread
         self.threads['Scheduler'].start()
@@ -1958,7 +2720,7 @@ class PetWidget(QWidget):
         self.screen_geo = screen.availableGeometry() #screenGeometry()
         self.screen_width = self.screen_geo.width()
         self.screen_height = self.screen_geo.height()
-        self.floor_pos = self.current_screen.topLeft().y() + self.screen_height -self.height()
+        self._update_floor_pos()
 
 
     def limit_in_screen(self, new_x, new_y, on_action=False):

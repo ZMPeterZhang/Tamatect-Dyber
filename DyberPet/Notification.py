@@ -203,7 +203,7 @@ class DPNote(QWidget):
 
         elif note_type == 'random':
             random_list = [i for i in self.icon_dict.keys() if i.startswith('random') and\
-                           self.icon_dict[i]['fv_lock']<= settings.pet_data.fv_lvl]
+                           self.icon_dict[i]['fv_lock']<= settings.get_progression_level()]
             #print(random_list)
             if len(random_list) == 0:
                 self.note_in_prepare = False
@@ -291,6 +291,12 @@ class DPNote(QWidget):
         # 宠物到达饥饿状态和饿死时，发出通知
         if direction == 'up':
             return
+        if getattr(getattr(settings, 'pet_conf', None), 'aec_mode', False):
+            if hp_tier == 0:
+                self.setup_notification('status_hp', message=self.tr("Your pet's health is critical!"))
+            elif hp_tier == 1:
+                self.setup_notification('status_hp', message=self.tr("Your pet's health is low."))
+            return
         if hp_tier == 0:
             self.setup_notification('status_hp', message=self.tr('Your pet is starving! (Favor point starts decreasing)'))
         elif hp_tier == 1:
@@ -298,12 +304,14 @@ class DPNote(QWidget):
 
     def fvchange_note(self, fv_lvl):
         #print(fv_lvl,'note')
+        aec_mode = getattr(getattr(settings, 'pet_conf', None), 'aec_mode', False)
+        progression_name = self.tr('EXP') if aec_mode else self.tr('Favor')
         if fv_lvl == -1:
             self.setup_notification('status_fv',
-                                    message=self.tr('Congrats! You have reached the max FV level! Thank you for your companionship all this time!'))
+                                    message=self.tr('Congrats! You have reached the max {0} level!').format(progression_name))
         else:
             self.setup_notification('status_fv',
-                                    message=f"{self.tr('Favor leveled up:')} lv{int(fv_lvl)}! {self.tr('More features have been unlocked!')}")
+                                    message=f"{progression_name} {self.tr('leveled up:')} lv{int(fv_lvl)}! {self.tr('More features have been unlocked!')}")
             
     def check_note_merge(self, note_type, message):
         direction, merge_num, unmatched_text = extract_change_info(message)

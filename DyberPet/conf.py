@@ -31,6 +31,22 @@ num_hp_states = 4
 # Copied from settings.py
 LVL_BAR_V1 = [20, 120, 300, 600, 1200, 1800, 2400, 3200]
 LVL_BAR = [20] + [120]*200
+LEGACY_ROLE_NAMES = {'TamatectAEC': 'Tamatect'}
+
+
+def migrate_role_name(role_name):
+    return LEGACY_ROLE_NAMES.get(role_name, role_name)
+
+
+def migrate_role_mapping(role_mapping):
+    if not isinstance(role_mapping, dict):
+        return role_mapping
+
+    for old_name, new_name in LEGACY_ROLE_NAMES.items():
+        if old_name in role_mapping:
+            role_mapping.setdefault(new_name, role_mapping[old_name])
+            role_mapping.pop(old_name)
+    return role_mapping
 
 class PetConfig:
     """
@@ -43,6 +59,7 @@ class PetConfig:
         self.width = 128
         self.height = 128
         self.scale = 1.0
+        self.aec_mode = False
 
         self.refresh = 5
         self.interact_speed = 0.02
@@ -58,7 +75,9 @@ class PetConfig:
         self.fall = None
         self.on_floor = None
         self.focus = None
+        self.feed_action = None
         self.patpat = None
+        self.aec_actions = {}
         #self.subpet = []
         self.act_dict = {}
         self.random_act = []
@@ -87,6 +106,7 @@ class PetConfig:
             conf_params = json.load(f)
 
             o.petname = pet_name
+            o.aec_mode = conf_params.get('aec_mode', False)
             o.scale = conf_params.get('scale', 1.0)
             o.width = conf_params.get('width', 128) * o.scale
             o.height = conf_params.get('height', 128) * o.scale
@@ -115,6 +135,11 @@ class PetConfig:
             o.prefall = act_dict[conf_params.get('prefall','fall')]
             o.on_floor = act_dict[conf_params.get('on_floor', 'default')]
             o.focus = act_dict[conf_params['focus']] if 'focus' in conf_params.keys() else None
+            o.feed_action = conf_params.get('feed_action')
+            o.aec_actions = {
+                state: act_dict[action]
+                for state, action in conf_params.get('aec_actions', {}).items()
+            }
 
             pat_conf = conf_params.get('patpat', 'default')
             if isinstance(pat_conf, str):
@@ -509,9 +534,10 @@ class Act:
         for i in matching_idx:
             img.append(pic_dict["%s_%s"%(images, i)])
 
-        if scale != 1:
-            img = [i.scaled(int(i.width() * scale), 
-                            int(i.height() * scale),
+        image_scale = conf_param.get('scale', scale)
+        if image_scale != 1:
+            img = [i.scaled(int(i.width() * image_scale),
+                            int(i.height() * image_scale),
                             aspectMode=Qt.KeepAspectRatio,
                             mode=Qt.SmoothTransformation) for i in img]
 
@@ -615,6 +641,9 @@ class ActData:
         self.current_pet = petsList[0]
         self.file_path = os.path.join(configdir, 'data/act_data.json')
         self.allAct_params = self.init_config()
+        if any(name in self.allAct_params for name in LEGACY_ROLE_NAMES):
+            migrate_role_mapping(self.allAct_params)
+            self.save_data()
 
     def init_config(self):
         if os.path.isfile(self.file_path):
@@ -745,6 +774,7 @@ class PetData:
         self.hp_tier = 3
         self.fv = 0
         self.fv_lvl = 0
+        self.aec_data = {}
         self.items = {}
         self.coins = 0
         self.frozen_data = False
@@ -767,6 +797,7 @@ class PetData:
                 allData_params = {}
                 self.saveGood = False
 
+            migrate_role_mapping(allData_params)
 
             if self.current_pet in allData_params.keys():
                 # Already the new version save structure
@@ -810,10 +841,12 @@ class PetData:
         data_params = self._check_coins(data_params)
         data_params = self._check_items(data_params)
         data_params = self._check_fvsys(data_params)
+        data_params = self._check_aec_data(data_params)
         self.hp = data_params['HP']
         self.hp_tier = data_params['HP_tier']
         self.fv = data_params['FV']
         self.fv_lvl = data_params['FV_lvl']
+        self.aec_data = data_params['aec_data']
         self.items = data_params['items']
         self.coins = data_params['coins']
         self.days, self.last_opened = self._sumDays(data_params)
@@ -826,6 +859,37 @@ class PetData:
         self.save_data()
         self.value_type = { key: type(data_params[key]) for key in data_params.keys() }
         self.value_type.pop('fv_sys_ver')
+        self.value_type.pop('aec_data')
+
+    def _check_aec_data(self, data_params):
+        aec_data = data_params.get('aec_data')
+        if not isinstance(aec_data, dict):
+            aec_data = {}
+            data_params['aec_data'] = aec_data
+        defaults = {
+            'work_minutes_today': 0,
+            'work_date': datetime.now().date().isoformat(),
+            'exp_remainder': 0.0,
+            'coin_remainder': 0.0,
+            'health_remainder': 0.0,
+        }
+        for key, value in defaults.items():
+            aec_data.setdefault(key, value)
+        if not isinstance(aec_data['work_minutes_today'], int) or aec_data['work_minutes_today'] < 0:
+            aec_data['work_minutes_today'] = 0
+        if not isinstance(aec_data['work_date'], str):
+            aec_data['work_date'] = datetime.now().date().isoformat()
+        if not isinstance(aec_data['exp_remainder'], (int, float)):
+            aec_data['exp_remainder'] = 0.0
+        aec_data['exp_remainder'] = max(0.0, float(aec_data['exp_remainder']))
+        aec_data['exp_remainder'] %= 1.0
+        for key in ('coin_remainder', 'health_remainder'):
+            if not isinstance(aec_data[key], (int, float)):
+                aec_data[key] = 0.0
+            aec_data[key] = max(0.0, float(aec_data[key]))
+        aec_data['coin_remainder'] %= 1.0
+        aec_data['health_remainder'] %= 25.0
+        return data_params
 
     def _check_coins(self, data_params):
         if 'coins' not in data_params:
@@ -910,10 +974,12 @@ class PetData:
         data_params = self._check_coins(data_params)
         data_params = self._check_items(data_params)
         data_params = self._check_fvsys(data_params)
+        data_params = self._check_aec_data(data_params)
         self.hp = data_params['HP']
         self.hp_tier = data_params['HP_tier']
         self.fv = data_params['FV']
         self.fv_lvl = data_params['FV_lvl']
+        self.aec_data = data_params['aec_data']
         self.items = data_params['items']
         self.coins = data_params['coins']
         self.days, self.last_opened = self._sumDays(data_params)
@@ -948,6 +1014,27 @@ class PetData:
         self.allData_params[self.current_pet]['FV'] = self.fv
         self.allData_params[self.current_pet]['FV_lvl'] = self.fv_lvl
         self.save_data()
+
+    def change_aec_data(self, **updates):
+        if self.frozen_data:
+            return
+
+        self.aec_data.update(updates)
+        self.allData_params[self.current_pet]['aec_data'] = self.aec_data.copy()
+        self.save_data()
+
+    def migrate_aec_progression(self):
+        from .aec import migrate_aec_progression
+
+        fv, fv_lvl, aec_data, migrated = migrate_aec_progression(
+            self.aec_data, self.fv, self.fv_lvl, LVL_BAR)
+        if not migrated:
+            return False
+
+        self.aec_data = aec_data
+        self.allData_params[self.current_pet]['aec_data'] = aec_data.copy()
+        self.change_fv(fv, fv_lvl)
+        return True
     
     def change_coin(self, value_change):
         if self.frozen_data:
@@ -1024,6 +1111,8 @@ class PetData:
 
         else:
             # Save to import is from new version
+            save_allDict = migrate_role_mapping(save_allDict.copy())
+            petname = migrate_role_name(petname)
             if petname == 'all':
                 for pet, save_dict in save_allDict.items():
                     try:
@@ -1063,6 +1152,8 @@ class PetData:
                     self.transfer_save_toPet(save_dict, petname)
             else:
                 # Save to import is from new version
+                save_allDict = migrate_role_mapping(save_allDict.copy())
+                petname = migrate_role_name(petname)
                 if petname == 'all':
                     for pet, save_dict in save_allDict.items():
                         self.transfer_save_toPet(save_dict, pet)
@@ -1079,10 +1170,12 @@ class PetData:
         return 1
 
     def transfer_save_toPet(self, data_params, petname):
+        petname = migrate_role_name(petname)
 
         data_params = self._check_coins(data_params)
         data_params = self._check_items(data_params)
         data_params = self._check_fvsys(data_params)
+        data_params = self._check_aec_data(data_params)
 
         if petname not in self.allData_params.keys():
             self.allData_params[petname] = data_params.copy()
@@ -1098,6 +1191,7 @@ class PetData:
             self.hp_tier = data_params['HP_tier']
             self.fv = data_params['FV']
             self.fv_lvl = data_params['FV_lvl']
+            self.aec_data = data_params['aec_data']
             self.items = data_params['items']
             self.coins = data_params['coins']
             self.days = data_params['days']
@@ -1327,6 +1421,12 @@ class ItemData:
             v = list(set(v))
             self.reward_dict[k] = v
 
+    def get_display_name(self, item_name):
+        item_config = self.item_dict.get(item_name)
+        if item_config is None:
+            return item_name
+        return item_config.get('display_name', item_name)
+
     def init_item(self, conf_param, itemName, itemFolder, modName):
         """
         物品
@@ -1340,6 +1440,7 @@ class ItemData:
         :param description 物品描述
         """
         name = itemName #conf_param['name']
+        display_name = conf_param.get('display_name', name)
         image = _load_item_img(os.path.join(itemFolder, conf_param['image']))
         effect_HP = int(conf_param.get('effect_HP', 0))
         
@@ -1366,11 +1467,11 @@ class ItemData:
         buff = conf_param.get('buff', {})
 
         if effect_FV==0 and effect_HP==0:
-            hint = '{} {}\n\n{}\n'.format(name,
+            hint = '{} {}\n\n{}\n'.format(display_name,
                                         ' '.join(['⭐']*fv_lock), 
                                         description)
         else:
-            hint = f"{name} {' '.join(['⭐']*fv_lock)}\n\n{description}\n____________________________________\n\n{self.HUNGERSTR}: {effect_HP_str}\n{self.FAVORSTR}: {effect_FV_str}\n"
+            hint = f"{display_name} {' '.join(['⭐']*fv_lock)}\n\n{description}\n____________________________________\n\n{self.HUNGERSTR}: {effect_HP_str}\n{self.FAVORSTR}: {effect_FV_str}\n"
         
         buff_description = buff.get('description', '')
         if buff_description:
@@ -1393,6 +1494,7 @@ class ItemData:
         cost = conf_param.get('cost', 50*(fv_lock+1))
 
         return {'name': name,
+                'display_name': display_name,
                 'image': image,
                 'effect_HP': effect_HP,
                 'effect_FV': effect_FV,
@@ -1448,6 +1550,7 @@ def init_item(conf_param, itemName, itemFolder, modName, HUNGERSTR, FAVORSTR):
     """
 
     name = itemName #conf_param['name']
+    display_name = conf_param.get('display_name', name)
     image = _load_item_img(os.path.join(itemFolder, conf_param['image']))
     effect_HP = int(conf_param.get('effect_HP', 0))
     
@@ -1498,6 +1601,7 @@ def init_item(conf_param, itemName, itemFolder, modName, HUNGERSTR, FAVORSTR):
         
 
     return {'name': name,
+            'display_name': display_name,
             'image': image,
             'effect_HP': effect_HP,
             'effect_FV': effect_FV,

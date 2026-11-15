@@ -1,0 +1,50 @@
+{
+  "default": {
+    "images": "idle",
+    "act_num": 4,
+    "frame_refresh": 0.5
+  },
+  "idle_click": {
+    "images": "idle_click",
+    "act_num": 1,
+    "frame_refresh": 0.5
+  },
+  "focus": {
+    "images": "focus",
+    "act_num": 1,
+    "frame_refresh": 0.5
+  },
+  "feed_2": {
+    "images": "eating_ordinary",
+    "act_num": 1,
+    "frame_refresh": 0.5
+  },
+  "sleep": {
+    "images": "sleeping",
+    "act_num": 1,
+    "frame_refresh": 0.5
+  },
+  "dead": {
+    "images": "die",
+    "act_num": 1,
+    "frame_refresh": 0.5
+  },
+  "drag": {
+    "images": "drag",
+    "act_num": 1
+  },
+  "fall": {
+    "images": "falling",
+    "act_num": 1
+  },
+  "land": {
+    "images": "land",
+    "act_num": 1
+  },
+  "aec_hard_hat": {
+    "images": "aec_hard_hat",
+    "act_num": 1,
+    "frame_refresh": 0.5,
+    "scale": 0.4959
+  }
+}

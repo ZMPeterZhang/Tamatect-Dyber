@@ -3,6 +3,10 @@ from sys import platform
 import ctypes
 from tendo import singleton
 import os
+
+if getattr(sys, 'frozen', False):
+    os.chdir(os.path.dirname(sys.executable))
+
 from DyberPet.utils import read_json
 from DyberPet.DyberPet import PetWidget
 from DyberPet.Notification import DPNote
@@ -28,9 +32,8 @@ import DyberPet.settings as settings
 # pylupdate5 langs.pro
 # lrelease langs.zh_CN.ts
 
-# For .exe:
-# Now we use pyinstaller 6.5.0
-# pyinstaller --noconsole --icon="000.ico" --hidden-import="pynput.mouse._win32" --hidden-import="pynput.keyboard._win32" run_DyberPet.py
+# For Windows release builds:
+# python -m PyInstaller --noconfirm --clean --windowed --name Tamatect --icon "..\Tamatect.ico" --contents-directory . --add-data "..\res;res" --collect-all qfluentwidgets --hidden-import pynput.mouse._win32 --hidden-import pynput.keyboard._win32 --specpath build --workpath build\pyinstaller run_DyberPet.py
 
 # For Mac:
 # pyinstaller --windowed --icon 000.icns --add-data="res:res" --add-data="DyberPet:DyberPet" --hidden-import="pynput.mouse._darwin" --hidden-import="pynput.keyboard._darwin" run_DyberPet.py
@@ -114,6 +117,9 @@ class DyberPetApp(QApplication):
         self.note.noteToLog.connect(self.board.statusInterface._addNote)
         self.p.hp_updated.connect(self.board.statusInterface.StatusCard._updateHP)
         self.p.fv_updated.connect(self.board.statusInterface.StatusCard._updateFV)
+        self.p.aec_add_coins.connect(
+            lambda value, note, notify:
+            self.board.backpackInterface.addCoins(value, notify, False, note))
         self.p.change_note.connect(self.board.statusInterface._changePet)
         self.board.statusInterface.changeStatus.connect(self.p._change_status)
         self.p.stopAllThread.connect(self.board.statusInterface.stopBuffThread)

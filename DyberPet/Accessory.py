@@ -6,6 +6,7 @@ import uuid
 import types
 import random
 import inspect
+from collections import deque
 from typing import List
 import pynput.mouse as mouse
 from datetime import datetime, timedelta
@@ -14,7 +15,7 @@ from datetime import datetime, timedelta
 from apscheduler.schedulers.qt import QtScheduler
 from apscheduler.triggers import interval, date, cron
 
-from PySide6.QtCore import Qt, QTimer, QObject, QPoint, QUrl, QEvent, QRectF, QRect, QSize
+from PySide6.QtCore import Qt, QTimer, QObject, QPoint, QUrl, QEvent, QRectF, QRect, QSize, QElapsedTimer
 from PySide6.QtGui import QImage, QPixmap, QIcon, QCursor,QPainter
 from PySide6.QtGui import QFont, QTransform, QAction
 
@@ -48,7 +49,76 @@ else:
     #basedir = '/'.join(basedir.split('/')[:-1])
     flags = Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint
 
+ACCESSORY_FOLLOW_DELAY_MS = 167
+ITEM_LAYER_FOLLOW_DELAY_VARIATION = 0.1
+
 basedir = settings.BASEDIR
+
+
+class ItemLayerFall(QLabel):
+    """Display equipped layers along the pet's recent fall path."""
+    settled = Signal()
+
+    def __init__(self, pet):
+        super().__init__(pet, Qt.Tool | Qt.FramelessWindowHint |
+                         Qt.WindowTransparentForInput | Qt.WindowDoesNotAcceptFocus |
+                         Qt.NoDropShadowWindowHint)
+        self.pet = pet
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_ShowWithoutActivating)
+        self.clock = QElapsedTimer()
+        self.path = deque()
+        self.landed_at = None
+        self.follow_delay_ms = ACCESSORY_FOLLOW_DELAY_MS
+        self.timer = QTimer(self)
+        self.timer.setTimerType(Qt.PreciseTimer)
+        self.timer.setInterval(20)
+        self.timer.timeout.connect(self.follow)
+
+    def start(self):
+        origin = self.pet.label.mapToGlobal(QPoint())
+        self.path.clear()
+        self.path.append((0, origin))
+        self.landed_at = None
+        delay_variation = ACCESSORY_FOLLOW_DELAY_MS * ITEM_LAYER_FOLLOW_DELAY_VARIATION
+        self.follow_delay_ms = random.uniform(
+            ACCESSORY_FOLLOW_DELAY_MS - delay_variation,
+            ACCESSORY_FOLLOW_DELAY_MS + delay_variation,
+        )
+        self.setWindowFlag(Qt.WindowStaysOnTopHint, settings.on_top_hint)
+        self.move(origin)
+        self.clock.start()
+        self.timer.start()
+
+    def is_active(self):
+        return self.timer.isActive()
+
+    def set_frame(self, frame):
+        self.setFixedSize(frame.size())
+        self.setPixmap(frame)
+        if not self.isVisible():
+            self.show()
+            self.move(self.path[0][1])
+
+    def stop(self):
+        self.timer.stop()
+        self.hide()
+        self.path.clear()
+
+    def follow(self):
+        elapsed = self.clock.elapsed()
+        self.path.append((elapsed, self.pet.label.mapToGlobal(QPoint())))
+        cutoff = elapsed - self.follow_delay_ms
+        while len(self.path) > 1 and self.path[1][0] <= cutoff:
+            self.path.popleft()
+        self.move(self.path[0][1])
+
+        if settings.onfloor and self.landed_at is None:
+            self.landed_at = elapsed
+        if not self.pet.isVisible() or (self.landed_at is not None and self.landed_at <= cutoff):
+            self.stop()
+            self.settled.emit()
+
 
 ##############################
 #          组件模块
@@ -232,7 +302,7 @@ HangLabelStyle = """
 QLabel {
     background: rgba(255, 255, 255, 0);
     font-size: 16px;
-    font-family: "黑体";
+    font-family: "Arial";
     border: 0px
 }
 """
@@ -358,8 +428,11 @@ class QAccessory(QWidget):
         self.timeout = acc_act.get('timeout', True)
         self.closable = acc_act.get('closable', False)
         self.follow_main = acc_act.get('follow_main', False)
-        self.delay_respond = 500 #ms
-        self.delay_timer = 500 #ms
+        self.above_main = acc_act.get('above_main', True)
+        self.delay_respond = ACCESSORY_FOLLOW_DELAY_MS
+        self.delay_timer = ACCESSORY_FOLLOW_DELAY_MS
+        self.main_falling = False
+        self.recovering_from_fall = False
         self.speed_follow_main = acc_act.get('speed_follow_main', 5)
         self.at_destination = True
         self.move_right = False
@@ -433,6 +506,7 @@ class QAccessory(QWidget):
 
         self.setLayout(self.petlayout)
         self.show()
+        self._raise_if_above_main()
 
         self.timer = QTimer()
         self.timer.setTimerType(Qt.PreciseTimer)
@@ -471,6 +545,10 @@ class QAccessory(QWidget):
         else:
             self.move(x-self.current_anchor[0],y-self.current_anchor[1])
 
+    def _raise_if_above_main(self):
+        if self.above_main and self.isVisible():
+            self.raise_()
+
     def _withdraw(self):
         self.acc_withdrawed.emit(self.acc_act['name'])
         self._closeit()
@@ -495,6 +573,7 @@ class QAccessory(QWidget):
         self.setAutoFillBackground(False)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.show()
+        self._raise_if_above_main()
 
     def mousePressEvent(self, event):
         """
@@ -512,13 +591,55 @@ class QAccessory(QWidget):
 
     def update_main_pos(self, pos_x, pos_y):
         if self.follow_main:
+            is_falling = self._main_is_falling()
+            if not is_falling:
+                just_landed = self.main_falling
+                self.main_falling = False
+                self.destination = [
+                    pos_x + self.current_anchor[0],
+                    pos_y + self.current_anchor[1],
+                ]
+                if just_landed:
+                    self.recovering_from_fall = True
+
+                if self.recovering_from_fall:
+                    self.delay_timer = 0
+                    distance_x = self.destination[0] - self.pos().x()
+                    distance_y = self.destination[1] - self.pos().y()
+                    if max(1, self.speed_follow_main * settings.tunable_scale) >= (
+                        (distance_x ** 2 + distance_y ** 2) ** 0.5
+                    ):
+                        self.move(*self.destination)
+                        self.at_destination = True
+                        self.recovering_from_fall = False
+                    else:
+                        self.at_destination = False
+                        self.move_right = distance_x > 0
+                    self._raise_if_above_main()
+                    return
+
+                self.at_destination = True
+                self.move_right = False
+                self.delay_timer = 0
+                self.move(*self.destination)
+                self._raise_if_above_main()
+                return
+            if not self.main_falling:
+                self.delay_timer = self.delay_respond
+            self.main_falling = True
+
             x_new = pos_x+self.current_anchor[0] - self.pos().x()
             y_pos = pos_y+self.current_anchor[1] - self.pos().y()
             if self.speed_follow_main*5 <= ((x_new**2 + y_pos**2)**0.5):
                 self.at_destination = False
                 self.destination = [pos_x+self.current_anchor[0], pos_y+self.current_anchor[1]]
+            self._raise_if_above_main()
                 #if self.delay_respond == self.delay_time:
                 #self.move(pos_x-self.anchor[0]*settings.tunable_scale, pos_y-self.anchor[1]*settings.tunable_scale)
+
+    @staticmethod
+    def _main_is_falling():
+        return bool(settings.set_fall) and settings.onfloor == 0 and not settings.draging
 
     def img_from_act(self, act):
 
@@ -593,6 +714,7 @@ class QAccessory(QWidget):
 
         if self.follow_main and not self.at_destination:
             self.move_to_main()
+        self._raise_if_above_main()
 
     def _move(self, act: QAction) -> None: #pos: QPoint, act: QAction) -> None:
         """
@@ -645,11 +767,12 @@ class QAccessory(QWidget):
             self.move_right = False
 
         if max(1,self.speed_follow_main*settings.tunable_scale) >= ((movement_x**2 + movement_y**2)**0.5):
-            #plus_x = movement_x
-            #plus_y = movement_y
+            self.move(*self.destination)
             self.move_right = False
             self.at_destination = True
-            self.delay_timer = self.delay_respond
+            if not self._main_is_falling():
+                self.recovering_from_fall = False
+            self.delay_timer = self.delay_respond if self._main_is_falling() else 0
             return
 
         self.move(self.pos().x()+plus_x, self.pos().y()+plus_y)
@@ -1320,7 +1443,7 @@ class SubPet(QWidget):
                 pet_fvlvl = pet_data.get('FV_lvl', 0)
                 select_acts = [_build_act(self.pet_conf.act_name[i], self.act_menu, self._show_act) for i in range(len(self.pet_conf.act_name)) if (self.pet_conf.act_type[i][1] <= pet_fvlvl) and self.pet_conf.act_name[i] is not None]
             else:
-                select_acts = [_build_act(self.pet_conf.act_name[i], self.act_menu, self._show_act) for i in range(len(self.pet_conf.act_name)) if (self.pet_conf.act_type[i][1] <= settings.pet_data.fv_lvl) and self.pet_conf.act_name[i] is not None]
+                select_acts = [_build_act(self.pet_conf.act_name[i], self.act_menu, self._show_act) for i in range(len(self.pet_conf.act_name)) if (self.pet_conf.act_type[i][1] <= settings.get_progression_level()) and self.pet_conf.act_name[i] is not None]
             self.act_menu.addActions(select_acts)
         
         if self.pet_conf.acc_name: # is not None:
@@ -1329,7 +1452,7 @@ class SubPet(QWidget):
                 pet_fvlvl = pet_data.get('FV_lvl', 0)
                 select_accs = [_build_act(self.pet_conf.acc_name[i], self.act_menu, self._show_acc) for i in range(len(self.pet_conf.acc_name)) if (self.pet_conf.accessory_act[self.pet_conf.acc_name[i]]['act_type'][1] <= pet_fvlvl) ]
             else:
-                select_accs = [_build_act(self.pet_conf.acc_name[i], self.act_menu, self._show_acc) for i in range(len(self.pet_conf.acc_name)) if (self.pet_conf.accessory_act[self.pet_conf.acc_name[i]]['act_type'][1] <= settings.pet_data.fv_lvl) ]
+                select_accs = [_build_act(self.pet_conf.acc_name[i], self.act_menu, self._show_acc) for i in range(len(self.pet_conf.acc_name)) if (self.pet_conf.accessory_act[self.pet_conf.acc_name[i]]['act_type'][1] <= settings.get_progression_level()) ]
             self.act_menu.addActions(select_accs)
 
         menu.addMenu(self.act_menu)
