@@ -1,0 +1,7 @@
+APScheduler==3.11.3
+PyInstaller==6.5.0
+PySide6==6.5.2
+PySide6-Fluent-Widgets==1.5.4
+pynput==1.8.2
+pywin32==312; sys_platform == "win32"
+tendo==0.3.0

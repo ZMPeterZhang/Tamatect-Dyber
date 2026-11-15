@@ -65,36 +65,31 @@
   
 ## 快速体验 Demo
 ### Windows 用户
-  将 Release 下载至本地，双击 **EXE** 文件即可
+  从最新的 GitHub Release 下载 `Tamatect-Windows-x64.zip`，将**整个压缩包**解压到有写入权限的文件夹后运行 `Tamatect.exe`。不要单独移动 EXE；压缩包还包含应用资源和运行文件。设置与存档会保存在 EXE 旁边的 `data` 文件夹中。
 
 
-### Windows Terminal (目前仅开源至 v0.6.7)
-  建议首先在本地创建新的 **conda** 环境  
+### Windows 源码运行
+  安装 Python 3.9，然后创建虚拟环境并安装锁定的依赖：
   ```
-  conda create --name Dyber_pyside python=3.9.18
-  conda activate Dyber_pyside
-  conda install -c conda-forge apscheduler
-  conda install -c conda-forge pynput
-  pip install PySide6-Fluent-Widgets==1.5.4 -i https://pypi.org/simple/
-  pip install pyside6==6.5.2
-  pip install tendo
+  py -3.9 -m venv .venv
+  .\.venv\Scripts\python.exe -m pip install --upgrade pip
+  .\.venv\Scripts\python.exe -m pip install -r requirements.txt
   ```
-  将仓库下载至本地，之后运行 **``run_DyberPet.py``** 即可
+  在仓库根目录运行：`.\.venv\Scripts\python.exe run_DyberPet.py`。
 
-  
-### MacOS 用户 (目前仅开源至 v0.6.7)
-  建议首先在本地创建新的 **conda** 环境  
+### VS Code 调试
+  打开仓库文件夹，将 Python 解释器选择为 `.venv\Scripts\python.exe`，打开 `run_DyberPet.py`，按 **F5** 并选择 Python Debugger。若启动失败，可在集成终端运行上面的源码命令查看 traceback。运行设置和存档保存在 `data/`。
+
+### 构建 Windows Release
+  在仓库根目录安装上述依赖后运行：
   ```
-  conda create --name Dyber_pyside python=3.9.18
-  conda activate Dyber_pyside
-  conda install -c conda-forge apscheduler
-  pip install pynput==1.7.6
-  pip install PySide6-Fluent-Widgets==1.5.4 -i https://pypi.org/simple/
-  pip install pyside6==6.5.2
-  pip install tendo
+  .\.venv\Scripts\python.exe -m PyInstaller --noconfirm --clean --windowed --name Tamatect --icon "..\Tamatect.ico" --contents-directory . --add-data "..\res;res" --collect-all qfluentwidgets --hidden-import pynput.mouse._win32 --hidden-import pynput.keyboard._win32 --specpath build --workpath build\pyinstaller run_DyberPet.py
+  Compress-Archive -Path .\dist\Tamatect\* -DestinationPath .\dist\Tamatect-Windows-x64.zip -Force
   ```
-  将仓库下载至本地，之后运行 **``run_DyberPet.py``** 即可
-  
+  将 `dist\Tamatect-Windows-x64.zip` 上传至 GitHub Release。该构建会输出 onedir 目录，请发布整个 ZIP，不要只发布 EXE；Windows 程序图标来自 `Tamatect.ico`。
+
+### macOS 用户（开源版本仅至 v0.6.7）
+  当前的 Tamatect Windows Release 说明不适用于 macOS。旧版 macOS 用户仍可按对应历史 Release 的说明运行。
 
 ## 素材与模组合集 
 
