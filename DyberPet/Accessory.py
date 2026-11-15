@@ -50,6 +50,7 @@ else:
     flags = Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint
 
 ACCESSORY_FOLLOW_DELAY_MS = 167
+ITEM_LAYER_FOLLOW_DELAY_VARIATION = 0.1
 
 basedir = settings.BASEDIR
 
@@ -68,6 +69,7 @@ class ItemLayerFall(QLabel):
         self.clock = QElapsedTimer()
         self.path = deque()
         self.landed_at = None
+        self.follow_delay_ms = ACCESSORY_FOLLOW_DELAY_MS
         self.timer = QTimer(self)
         self.timer.setTimerType(Qt.PreciseTimer)
         self.timer.setInterval(20)
@@ -78,6 +80,11 @@ class ItemLayerFall(QLabel):
         self.path.clear()
         self.path.append((0, origin))
         self.landed_at = None
+        delay_variation = ACCESSORY_FOLLOW_DELAY_MS * ITEM_LAYER_FOLLOW_DELAY_VARIATION
+        self.follow_delay_ms = random.uniform(
+            ACCESSORY_FOLLOW_DELAY_MS - delay_variation,
+            ACCESSORY_FOLLOW_DELAY_MS + delay_variation,
+        )
         self.setWindowFlag(Qt.WindowStaysOnTopHint, settings.on_top_hint)
         self.move(origin)
         self.clock.start()
@@ -101,7 +108,7 @@ class ItemLayerFall(QLabel):
     def follow(self):
         elapsed = self.clock.elapsed()
         self.path.append((elapsed, self.pet.label.mapToGlobal(QPoint())))
-        cutoff = elapsed - ACCESSORY_FOLLOW_DELAY_MS
+        cutoff = elapsed - self.follow_delay_ms
         while len(self.path) > 1 and self.path[1][0] <= cutoff:
             self.path.popleft()
         self.move(self.path[0][1])

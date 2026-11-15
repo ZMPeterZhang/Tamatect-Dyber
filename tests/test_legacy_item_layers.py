@@ -73,6 +73,36 @@ class LegacyItemLayerTests(unittest.TestCase):
                 self.assertTrue(layer['path'].is_file())
                 self.assertTrue(layer['path'].with_suffix('.png').is_file())
 
+    def test_each_visible_item_gets_its_own_fall_overlay(self):
+        layers = {
+            'first': {'visible': True},
+            'second': {'visible': True},
+            'hidden': {'visible': False},
+        }
+        owner = SimpleNamespace(
+            item_layers=layers,
+            item_layer_falls={},
+            _can_edit_layer=lambda layer: True,
+            _render_pet_frame=Mock(),
+        )
+        owner._stop_item_layer_falls = lambda: self.pet_widget._stop_item_layer_falls(owner)
+        overlays = []
+
+        def create_overlay(parent):
+            overlay = SimpleNamespace(settled=Mock(), start=Mock())
+            overlays.append(overlay)
+            return overlay
+
+        with patch('DyberPet.DyberPet.ItemLayerFall', side_effect=create_overlay):
+            self.pet_widget._start_item_layer_fall(owner)
+
+        self.assertEqual(set(owner.item_layer_falls), {'first', 'second'})
+        self.assertEqual(len(overlays), 2)
+        for overlay in overlays:
+            overlay.settled.connect.assert_called_once_with(owner._render_pet_frame)
+            overlay.start.assert_called_once_with()
+        owner._render_pet_frame.assert_called_once_with()
+
 
 if __name__ == '__main__':
     unittest.main()

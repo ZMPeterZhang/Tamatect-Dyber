@@ -419,7 +419,7 @@ class PetWidget(QWidget):
         self.image = None
         self.tray = None
         self.item_layers = {}
-        self.item_layer_fall = None
+        self.item_layer_falls = {}
 
         # 鼠标拖拽初始属性
         self.is_follow_mouse = False
@@ -526,8 +526,8 @@ class PetWidget(QWidget):
             # 左键绑定拖拽
             self.is_follow_mouse = True
             self.mouse_drag_pos = event.globalPos() - self.pos()
-            if self.item_layer_fall is not None and self.item_layer_fall.is_active():
-                self.item_layer_fall.stop()
+            if any(fall.is_active() for fall in self.item_layer_falls.values()):
+                self._stop_item_layer_falls()
                 self._render_pet_frame()
             
             if settings.onfloor == 0:
@@ -1357,8 +1357,7 @@ class PetWidget(QWidget):
         :param pet_name: 宠物名称
         :return:
         """
-        if self.item_layer_fall is not None:
-            self.item_layer_fall.stop()
+        self._stop_item_layer_falls()
         self.aec_process_timer.stop()
         self._stop_aec_sleep()
         self.aec_working = False
@@ -1719,24 +1718,44 @@ class PetWidget(QWidget):
         self._render_pet_frame()
 
     def _start_item_layer_fall(self):
-        if not any(layer['visible'] and self._can_edit_layer(layer)
-                   for layer in self.item_layers.values()):
+        falling_layers = {
+            layer_id: layer for layer_id, layer in self.item_layers.items()
+            if layer['visible'] and self._can_edit_layer(layer)
+        }
+        if not falling_layers:
             return
-        if self.item_layer_fall is None:
-            self.item_layer_fall = ItemLayerFall(self)
-            self.item_layer_fall.settled.connect(self._render_pet_frame)
-        self.item_layer_fall.start()
+        self._stop_item_layer_falls()
+        self.item_layer_falls = {}
+        for layer_id in falling_layers:
+            fall = ItemLayerFall(self)
+            fall.settled.connect(self._render_pet_frame)
+            self.item_layer_falls[layer_id] = fall
+            fall.start()
         self._render_pet_frame()
+
+    def _stop_item_layer_falls(self):
+        for fall in self.item_layer_falls.values():
+            fall.stop()
 
     def _render_pet_frame(self):
         image = settings.current_img
         layers = self.item_layers
         mirrored = getattr(settings, 'current_img_mirrored', False)
-        if self.item_layer_fall is not None and self.item_layer_fall.is_active():
+        active_falls = {
+            layer_id: fall for layer_id, fall in self.item_layer_falls.items()
+            if fall.is_active() and layer_id in layers
+        }
+        if active_falls:
             image = self._compose_item_layers(image, {}, target_size=self.label.size())
-            overlay = QPixmap(image.size())
-            overlay.fill(Qt.transparent)
-            self.item_layer_fall.set_frame(self._compose_item_layers(overlay, layers, mirrored))
+            for layer_id, fall in active_falls.items():
+                overlay = QPixmap(image.size())
+                overlay.fill(Qt.transparent)
+                item_layer = self._compose_item_layers(
+                    overlay,
+                    {layer_id: layers[layer_id]},
+                    mirrored,
+                )
+                fall.set_frame(item_layer)
         else:
             image = self._compose_item_layers(image, layers, mirrored, self.label.size())
         self.label.setPixmap(image)

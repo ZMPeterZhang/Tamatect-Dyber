@@ -63,13 +63,14 @@ class AccessoryFollowTests(unittest.TestCase):
             move=mock.Mock(),
             stop=mock.Mock(),
             settled=mock.Mock(),
+            follow_delay_ms=100,
         )
 
         with mock.patch.object(settings, 'onfloor', 0, create=True):
             ItemLayerFall.follow(overlay)
             overlay.move.assert_called_with(released)
 
-            landed_at = 100 + ACCESSORY_FOLLOW_DELAY_MS
+            landed_at = 100 + overlay.follow_delay_ms
             settings.onfloor = 1
             label.mapToGlobal.return_value = landed
             overlay.clock.elapsed.return_value = landed_at
@@ -82,6 +83,37 @@ class AccessoryFollowTests(unittest.TestCase):
             overlay.move.assert_called_with(landed)
             overlay.stop.assert_called_once()
             overlay.settled.emit.assert_called_once()
+
+    def test_item_layer_fall_randomizes_delay_for_each_fall_start(self):
+        overlay = SimpleNamespace(
+            pet=SimpleNamespace(
+                label=SimpleNamespace(mapToGlobal=mock.Mock(return_value=QPoint(10, 20)))
+            ),
+            path=deque(),
+            landed_at=None,
+            setWindowFlag=mock.Mock(),
+            move=mock.Mock(),
+            clock=SimpleNamespace(start=mock.Mock()),
+            timer=SimpleNamespace(start=mock.Mock()),
+        )
+        delay_variation = ACCESSORY_FOLLOW_DELAY_MS * 0.1
+        low_delay = ACCESSORY_FOLLOW_DELAY_MS - delay_variation
+        high_delay = ACCESSORY_FOLLOW_DELAY_MS + delay_variation
+
+        with mock.patch.object(settings, 'on_top_hint', True, create=True), mock.patch(
+            'DyberPet.Accessory.random.uniform',
+            side_effect=[low_delay, high_delay],
+        ) as random_delay:
+            ItemLayerFall.start(overlay)
+            first_delay = overlay.follow_delay_ms
+            ItemLayerFall.start(overlay)
+            second_delay = overlay.follow_delay_ms
+
+        self.assertEqual((first_delay, second_delay), (low_delay, high_delay))
+        self.assertEqual(random_delay.call_args_list, [
+            mock.call(low_delay, high_delay),
+            mock.call(low_delay, high_delay),
+        ])
 
     def test_accessory_catches_up_after_main_lands(self):
         with mock.patch.multiple(
