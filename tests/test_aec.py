@@ -230,6 +230,40 @@ class AECProgressionTests(unittest.TestCase):
                 'sound': '../outside.mp3',
             }])
 
+    def test_periodic_events_roll_at_the_configured_work_interval(self):
+        catalog = AECEventCatalog([{
+            'id': 'bim_crash',
+            'name': 'BIM model crash',
+            'interval_minutes': 15,
+            'chance': 0.01,
+        }])
+
+        self.assertEqual(
+            catalog.roll_periodic_events(14, random_value=lambda: 0.005),
+            [],
+        )
+        self.assertEqual(
+            catalog.roll_periodic_events(15, random_value=lambda: 0.005),
+            ['bim_crash'],
+        )
+        self.assertEqual(
+            catalog.roll_periodic_events(30, random_value=lambda: 0.01),
+            [],
+        )
+
+    def test_periodic_event_schedule_requires_valid_probability_and_interval(self):
+        for definition in (
+                {'interval_minutes': 0, 'chance': 0.01},
+                {'interval_minutes': 15, 'chance': 1.01},
+                {'chance': 0.01}):
+            with self.subTest(definition=definition):
+                with self.assertRaises(ValueError):
+                    AECEventCatalog([{
+                        'id': 'invalid',
+                        'name': 'Invalid',
+                        **definition,
+                    }])
+
 
 if __name__ == '__main__':
     unittest.main()

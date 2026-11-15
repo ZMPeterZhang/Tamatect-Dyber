@@ -1,5 +1,6 @@
 import csv
 import os
+import random
 import subprocess
 from datetime import date
 
@@ -236,6 +237,23 @@ class AECEventCatalog:
             if handler is not None and (not isinstance(handler, str) or not handler):
                 raise ValueError(f'AEC event {event_id!r} handler must be a non-empty string')
 
+            interval_minutes = definition.get('interval_minutes')
+            chance = definition.get('chance')
+            if interval_minutes is not None:
+                if (not isinstance(interval_minutes, int)
+                        or isinstance(interval_minutes, bool)
+                        or interval_minutes <= 0):
+                    raise ValueError(
+                        f'AEC event {event_id!r} interval_minutes must be a positive integer')
+                if (not isinstance(chance, (int, float))
+                        or isinstance(chance, bool)
+                        or not 0 <= chance <= 1):
+                    raise ValueError(
+                        f'AEC event {event_id!r} chance must be between 0 and 1')
+            elif chance is not None:
+                raise ValueError(
+                    f'AEC event {event_id!r} chance requires interval_minutes')
+
             self._definitions[event_id] = definition.copy()
 
     def __getitem__(self, event_id):
@@ -246,3 +264,20 @@ class AECEventCatalog:
 
     def __len__(self):
         return len(self._definitions)
+
+    def roll_periodic_events(self, work_minutes, random_value=None):
+        if (not isinstance(work_minutes, int)
+                or isinstance(work_minutes, bool)
+                or work_minutes < 0):
+            raise ValueError('work_minutes must be a non-negative integer')
+        if random_value is None:
+            random_value = random.random
+
+        triggered = []
+        for event in self._definitions.values():
+            interval_minutes = event.get('interval_minutes')
+            if (interval_minutes is not None and work_minutes > 0
+                    and work_minutes % interval_minutes == 0
+                    and random_value() < event['chance']):
+                triggered.append(event['id'])
+        return triggered

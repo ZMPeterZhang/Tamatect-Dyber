@@ -21,6 +21,9 @@ role are migrated to `Tamatect`.
   Rhino/Revit” for detected application work, “Working with you in Rhino/Revit”
   while a focus session is active alongside either application, and “working
   with you on Rhino.Inside” when both applications are detected.
+- At 0 Health, Tamatect loops its death animation until Health is restored. The
+  BIM model crash event deals 50 Health damage and rolls a 1% chance every 15
+  active work minutes.
 - AEC EXP and Level reuse favorability and its level. Existing AEC EXP/Level
   save values are migrated to those fields; non-AEC roles retain their current
   favorability behavior.

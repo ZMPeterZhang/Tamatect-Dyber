@@ -24,6 +24,11 @@
     "act_num": 1,
     "frame_refresh": 0.5
   },
+  "dead": {
+    "images": "die",
+    "act_num": 1,
+    "frame_refresh": 0.5
+  },
   "drag": {
     "images": "drag",
     "act_num": 1

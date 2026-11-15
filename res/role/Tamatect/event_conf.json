@@ -4,11 +4,13 @@
       "id": "bim_crash",
       "name": "BIM model crash",
       "effects": {
-        "hp": -10
+        "hp": -50
       },
       "animation": "Idle",
       "sound": "metal-pipe-fall-meme.mp3",
-      "message": "BIM model crashed. Tamatect lost 10 Health."
+      "message": "BIM model crashed. Tamatect lost 50 Health.",
+      "interval_minutes": 15,
+      "chance": 0.01
     }
   ]
 }

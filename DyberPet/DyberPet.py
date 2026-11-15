@@ -450,6 +450,7 @@ class PetWidget(QWidget):
         self.aec_event_handlers = {}
         self.aec_event_player = None
         self.aec_event_audio_output = None
+        self.aec_event_work_minutes = 0
         self.aec_work_mode = 'auto'
         self.aec_work_mode_actions = {}
         self.aec_detected_apps = frozenset()
@@ -1361,6 +1362,7 @@ class PetWidget(QWidget):
         self._stop_item_layer_falls()
         self.aec_process_timer.stop()
         self._stop_aec_sleep()
+        self.aec_event_work_minutes = 0
         self.aec_working = False
         self.aec_work_mode = 'auto'
         self.aec_work_mode_actions = {}
@@ -1863,6 +1865,10 @@ class PetWidget(QWidget):
 
     def _hp_updated(self, hp):
         self.hp_updated.emit(hp)
+        if (getattr(self, 'pet_conf', None)
+                and self.pet_conf.aec_mode
+                and hasattr(self, 'aec_working')):
+            self._update_aec_work_state()
 
     def _fv_updated(self, fv, fv_lvl):
         self.fv_updated.emit(fv, fv_lvl)
@@ -1922,7 +1928,11 @@ class PetWidget(QWidget):
         )
         if working != self.aec_working:
             self.aec_working = working
-            self._set_aec_animation_state('work' if working else 'idle')
+        animation_state = (
+            'dead' if self.pet_conf.aec_mode and settings.pet_data.hp <= 0 else
+            'sleep' if self.aec_sleeping else
+            'work' if working else 'idle')
+        self._set_aec_animation_state(animation_state)
         self._sync_aec_work_badge()
 
     def _sync_aec_work_badge(self):
@@ -1996,6 +2006,10 @@ class PetWidget(QWidget):
         if coin_gain:
             self.aec_add_coins.emit(
                 coin_gain, self.tr('AEC work reward'), False)
+        self.aec_event_work_minutes += 1
+        for event_id in self.aec_event_catalog.roll_periodic_events(
+                self.aec_event_work_minutes):
+            self._trigger_aec_special_event(event_id)
 
     def _set_aec_animation_state(self, state):
         if 'Animation' in self.workers:
@@ -2048,7 +2062,7 @@ class PetWidget(QWidget):
 
         if event.get('message'):
             self.register_notification('status_aec', self.tr(event['message']))
-        if event.get('animation'):
+        if event.get('animation') and settings.pet_data.hp > 0:
             self._show_act(event['animation'])
         if event.get('sound'):
             self._play_aec_event_sound(event['sound'])

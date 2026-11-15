@@ -163,7 +163,13 @@ class Animation_worker(QObject):
         # If HP type is not starving, this condition also makes sure only starving animation is played
 
         # AEC work and sleep states take priority over ordinary idle actions.
-        if self.pet_conf.aec_mode and self.aec_state in self.pet_conf.aec_actions:
+        if (self.pet_conf.aec_mode
+                and settings.pet_data.hp <= 0
+                and 'dead' in self.pet_conf.aec_actions):
+            acts = [self.pet_conf.aec_actions['dead']]
+
+        # AEC work and sleep states take priority over ordinary idle actions.
+        elif self.pet_conf.aec_mode and self.aec_state in self.pet_conf.aec_actions:
             acts = [self.pet_conf.aec_actions[self.aec_state]]
 
         # If under focus timer, play focus animation

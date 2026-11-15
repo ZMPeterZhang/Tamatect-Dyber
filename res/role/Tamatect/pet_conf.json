@@ -18,7 +18,8 @@
   "patpat": "idle_click",
   "aec_actions": {
     "work": "focus",
-    "sleep": "sleep"
+    "sleep": "sleep",
+    "dead": "dead"
   },
   "accessory_act": [
     {

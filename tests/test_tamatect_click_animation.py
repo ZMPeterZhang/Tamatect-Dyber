@@ -8,7 +8,7 @@ from PySide6.QtGui import QImage
 
 from DyberPet import settings
 from DyberPet.conf import Act, CheckCharFiles, basedir
-from DyberPet.modules import Interaction_worker
+from DyberPet.modules import Animation_worker, Interaction_worker
 
 
 class TamatectClickAnimationTests(unittest.TestCase):
@@ -82,7 +82,7 @@ class TamatectClickAnimationTests(unittest.TestCase):
         pic_names = {name: name for name in pic_dict}
 
         for action_name in (
-                'default', 'idle_click', 'focus', 'feed_2', 'sleep',
+                'default', 'idle_click', 'focus', 'feed_2', 'sleep', 'dead',
                 'drag', 'fall', 'land'):
             with self.subTest(action=action_name):
                 action = Act.init_act(
@@ -99,7 +99,7 @@ class TamatectClickAnimationTests(unittest.TestCase):
         self.assertEqual(feed_group['act_list'], ['feed_2'])
         self.assertEqual(
             pet_conf['aec_actions'],
-            {'work': 'focus', 'sleep': 'sleep'},
+            {'work': 'focus', 'sleep': 'sleep', 'dead': 'dead'},
         )
         self.assertEqual(
             Act.init_act(act_conf['focus'], pic_names, 1.0, 'Tamatect').images,
@@ -116,10 +116,33 @@ class TamatectClickAnimationTests(unittest.TestCase):
             Act.init_act(act_conf['sleep'], pic_names, 1.0, 'Tamatect').images,
             ['sleeping_0'],
         )
+        self.assertEqual(
+            Act.init_act(act_conf['dead'], pic_names, 1.0, 'Tamatect').images,
+            ['die_2', 'die_3'],
+        )
+        self.assertEqual(event_conf['events'][0]['effects']['hp'], -50)
+        self.assertEqual(event_conf['events'][0]['interval_minutes'], 15)
+        self.assertEqual(event_conf['events'][0]['chance'], 0.01)
         self.assertEqual(event_conf['events'][0]['animation'], 'Idle')
         for action_name in ('feed_1', 'feed_3', 'work', 'bim_crash'):
             self.assertNotIn(action_name, act_conf)
         self.assertIn('aec_hard_hat', act_conf)
+
+    def test_zero_health_uses_death_animation_even_during_work(self):
+        worker = SimpleNamespace(
+            pet_conf=SimpleNamespace(
+                aec_mode=True,
+                aec_actions={'dead': 'dead', 'work': 'focus'},
+            ),
+            aec_state='work',
+            _run_acts=mock.Mock(),
+        )
+
+        with mock.patch.object(
+                settings, 'pet_data', SimpleNamespace(hp=0), create=True):
+            Animation_worker.random_act(worker)
+
+        worker._run_acts.assert_called_once_with(['dead'], None)
 
     def test_food_use_uses_configured_feed_animation(self):
         worker = SimpleNamespace(

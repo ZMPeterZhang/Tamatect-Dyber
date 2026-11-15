@@ -73,6 +73,26 @@ class LegacyItemLayerTests(unittest.TestCase):
                 self.assertTrue(layer['path'].is_file())
                 self.assertTrue(layer['path'].with_suffix('.png').is_file())
 
+    def test_event_animation_does_not_interrupt_death_at_zero_health(self):
+        owner = SimpleNamespace(
+            pet_conf=SimpleNamespace(aec_mode=True),
+            aec_event_catalog={
+                'bim_crash': {
+                    'effects': {},
+                    'animation': 'Idle',
+                    'message': '',
+                },
+            },
+            _change_status=Mock(),
+            _show_act=Mock(),
+        )
+
+        with patch.object(
+                settings, 'pet_data', SimpleNamespace(hp=0), create=True):
+            self.pet_widget._trigger_aec_special_event(owner, 'bim_crash')
+
+        owner._show_act.assert_not_called()
+
     def test_each_visible_item_gets_its_own_fall_overlay(self):
         layers = {
             'first': {'visible': True},
